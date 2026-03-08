@@ -567,6 +567,13 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
       if (speechRecognitionRef.current) {
         try { speechRecognitionRef.current.stop(); } catch { /* 既に停止中 */ }
       }
+      // 3秒タイマーをクリア (ミュート後は自動送信しない)
+      if (debounceTimerRef.current) { clearTimeout(debounceTimerRef.current); debounceTimerRef.current = null; }
+      // 未送信テキストがあればすぐにダイアログを表示
+      if (pendingTextRef.current.trim()) {
+        showSilenceConfirmRef.current = true;
+        setShowSilenceConfirm(true);
+      }
     }
   }, [isMuted]);
 
