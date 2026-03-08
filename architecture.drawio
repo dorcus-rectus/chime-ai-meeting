@@ -1,388 +1,592 @@
-<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+<?xml version="1.0" encoding="UTF-8"?>
+<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1600" math="0" shadow="0">
   <root>
     <mxCell id="0" />
     <mxCell id="1" parent="0" />
 
     <!-- ============================================================
-         グループ外枠
+         TITLE
          ============================================================ -->
-
-    <!-- ブラウザグループ -->
-    <mxCell id="g_browser" value="ブラウザ (React + Amplify Hosting)"
-      style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;fillColor=#f0f6ff;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8;align=center;"
+    <mxCell id="title" value="AI Video Meeting System — AWS Architecture"
+      style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;
+             fontSize=22;fontStyle=1;fontColor=#1a1a2e;"
       vertex="1" parent="1">
-      <mxGeometry x="20" y="50" width="430" height="320" as="geometry" />
+      <mxGeometry x="400" y="18" width="1600" height="36" as="geometry" />
     </mxCell>
-
-    <!-- Lambda グループ -->
-    <mxCell id="g_lambda" value="Lambda 関数 (TypeScript + esbuild)"
-      style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;fillColor=#f8f0ff;strokeColor=#9673a6;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8;align=center;"
+    <mxCell id="subtitle" value="Amazon Chime SDK + Bedrock AgentCore + React 19 + CDK  |  ap-northeast-1"
+      style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;
+             fontSize=13;fontStyle=2;fontColor=#555555;"
       vertex="1" parent="1">
-      <mxGeometry x="760" y="50" width="260" height="320" as="geometry" />
-    </mxCell>
-
-    <!-- AWS マネージドサービスグループ -->
-    <mxCell id="g_services" value="AWS マネージドサービス (ap-northeast-1)"
-      style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;fillColor=#f5fff5;strokeColor=#82b366;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="20" y="470" width="1390" height="150" as="geometry" />
+      <mxGeometry x="400" y="56" width="1600" height="24" as="geometry" />
     </mxCell>
 
     <!-- ============================================================
-         ブラウザ内 Hooks
+         SWIM LANE 1 — FRONTEND
          ============================================================ -->
-
-    <mxCell id="n_useMeeting" value="&lt;b&gt;useMeeting&lt;/b&gt;&lt;br/&gt;Chime SDK JS + Transcribe"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;"
+    <mxCell id="grp-frontend" value="Frontend"
+      style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],
+                     [0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];
+             shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;grStroke=0;
+             verticalLabelPosition=top;verticalAlign=bottom;
+             fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=15;sketch=0;"
       vertex="1" parent="1">
-      <mxGeometry x="45" y="130" width="185" height="55" as="geometry" />
+      <mxGeometry x="30" y="90" width="300" height="520" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_useScreen" value="&lt;b&gt;useScreenShare&lt;/b&gt;&lt;br/&gt;getDisplayMedia + captureFrame"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="45" y="205" width="185" height="55" as="geometry" />
+    <!-- User icon -->
+    <mxCell id="user" value="Users / Browser"
+      style="shape=mxgraph.aws4.user;sketch=0;fontStyle=1;fontSize=11;
+             labelBackgroundColor=#ffffff;"
+      vertex="1" parent="grp-frontend">
+      <mxGeometry x="110" y="50" width="80" height="80" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_useAI" value="&lt;b&gt;useAIConversation&lt;/b&gt;&lt;br/&gt;API 呼び出し + 音声再生"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="45" y="280" width="185" height="55" as="geometry" />
+    <!-- Amplify Hosting -->
+    <mxCell id="amplify" value="Amplify Hosting&#xa;(CloudFront)"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.amplify;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-frontend">
+      <mxGeometry x="110" y="200" width="60" height="60" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_useAuth" value="&lt;b&gt;useAuth&lt;/b&gt;&lt;br/&gt;Amplify v6 + Cognito"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="250" y="130" width="185" height="55" as="geometry" />
+    <!-- React label -->
+    <mxCell id="react-label" value="React 19 + Vite 7&#xa;Chime SDK JS&#xa;useAuth / useMeeting&#xa;useAIConversation / useScreenShare"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;
+             fontSize=10;align=center;"
+      vertex="1" parent="grp-frontend">
+      <mxGeometry x="50" y="310" width="200" height="70" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_docUpload" value="&lt;b&gt;DocumentUpload&lt;/b&gt;&lt;br/&gt;RAG テキスト登録"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="250" y="205" width="185" height="55" as="geometry" />
+    <!-- User → Amplify -->
+    <mxCell id="e-user-amplify" value="HTTPS"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontSize=10;
+             fontStyle=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;
+             entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+      edge="1" source="user" target="amplify" parent="grp-frontend">
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
 
     <!-- ============================================================
-         API Gateway
+         SWIM LANE 2 — AUTH
          ============================================================ -->
-
-    <mxCell id="n_apigw" value="&lt;b&gt;API Gateway (REST)&lt;/b&gt;&lt;br/&gt;&lt;i&gt;Cognito Authorizer&lt;/i&gt;&lt;br/&gt;─────────────&lt;br/&gt;POST /meetings&lt;br/&gt;POST /ai-chat&lt;br/&gt;POST /documents&lt;br/&gt;GET /users&lt;br/&gt;DELETE /users"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;verticalAlign=middle;align=center;"
+    <mxCell id="grp-auth" value="Authentication"
+      style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],
+                     [0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];
+             shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;grStroke=0;
+             verticalLabelPosition=top;verticalAlign=bottom;
+             fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=15;sketch=0;"
       vertex="1" parent="1">
-      <mxGeometry x="510" y="100" width="200" height="230" as="geometry" />
+      <mxGeometry x="30" y="650" width="300" height="220" as="geometry" />
+    </mxCell>
+
+    <!-- Cognito -->
+    <mxCell id="cognito" value="Amazon Cognito&#xa;User Pool&#xa;(Email Auth, Self-Signup)"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cognito;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-auth">
+      <mxGeometry x="110" y="70" width="60" height="60" as="geometry" />
     </mxCell>
 
     <!-- ============================================================
-         Lambda 関数
+         SWIM LANE 3 — API LAYER
          ============================================================ -->
-
-    <mxCell id="n_lCreate" value="&lt;b&gt;create-meeting&lt;/b&gt;"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;"
+    <mxCell id="grp-api" value="API Layer"
+      style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],
+                     [0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];
+             shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;grStroke=0;
+             verticalLabelPosition=top;verticalAlign=bottom;
+             fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=15;sketch=0;"
       vertex="1" parent="1">
-      <mxGeometry x="780" y="118" width="220" height="44" as="geometry" />
+      <mxGeometry x="380" y="90" width="620" height="780" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_lChat" value="&lt;b&gt;ai-chat&lt;/b&gt;&lt;br/&gt;&lt;font color=&quot;#555555&quot;&gt;AgentCore + RAG + Polly&lt;/font&gt;"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="780" y="182" width="220" height="50" as="geometry" />
+    <!-- API Gateway -->
+    <mxCell id="apigw" value="Amazon API Gateway&#xa;REST API"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-api">
+      <mxGeometry x="270" y="50" width="60" height="60" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_lIngest" value="&lt;b&gt;ingest-document&lt;/b&gt;&lt;br/&gt;&lt;font color=&quot;#555555&quot;&gt;RAG インデックス構築&lt;/font&gt;"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="780" y="252" width="220" height="50" as="geometry" />
+    <!-- Cognito Authorizer badge -->
+    <mxCell id="apigw-auth-badge" value="Cognito Authorizer (JWT)"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;
+             fontSize=10;align=center;"
+      vertex="1" parent="grp-api">
+      <mxGeometry x="220" y="125" width="160" height="28" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_lUser" value="&lt;b&gt;user-management&lt;/b&gt;&lt;br/&gt;&lt;font color=&quot;#555555&quot;&gt;Cognito Admin 操作&lt;/font&gt;"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="780" y="322" width="220" height="30" as="geometry" />
+    <!-- Lambda: create-meeting -->
+    <mxCell id="lam-create" value="Lambda&#xa;create-meeting&#xa;POST /meetings"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=10;"
+      vertex="1" parent="grp-api">
+      <mxGeometry x="30" y="240" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Lambda: ai-chat -->
+    <mxCell id="lam-chat" value="Lambda&#xa;ai-chat&#xa;POST /ai-chat"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=10;"
+      vertex="1" parent="grp-api">
+      <mxGeometry x="155" y="240" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Lambda: ingest-document -->
+    <mxCell id="lam-ingest" value="Lambda&#xa;ingest-document&#xa;POST /documents"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=10;"
+      vertex="1" parent="grp-api">
+      <mxGeometry x="280" y="240" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Lambda: manage-documents -->
+    <mxCell id="lam-manage" value="Lambda&#xa;manage-documents&#xa;GET+DELETE /documents"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=10;"
+      vertex="1" parent="grp-api">
+      <mxGeometry x="405" y="240" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Lambda: user-management -->
+    <mxCell id="lam-user" value="Lambda&#xa;user-management&#xa;GET+DELETE /users"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=10;"
+      vertex="1" parent="grp-api">
+      <mxGeometry x="530" y="240" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Lambda: ingest-document-worker -->
+    <mxCell id="lam-worker" value="Lambda&#xa;ingest-document-worker&#xa;(SQS trigger)"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=10;"
+      vertex="1" parent="grp-api">
+      <mxGeometry x="280" y="530" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Endpoint description labels -->
+    <mxCell id="ep-desc-create" value="Create/join meeting&#xa;session" style="text;html=1;align=center;fontSize=9;strokeColor=none;fillColor=none;" vertex="1" parent="grp-api">
+      <mxGeometry x="10" y="310" width="100" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="ep-desc-chat" value="AI conversation&#xa;+ Vision + TTS" style="text;html=1;align=center;fontSize=9;strokeColor=none;fillColor=none;" vertex="1" parent="grp-api">
+      <mxGeometry x="135" y="310" width="100" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="ep-desc-ingest" value="RAG doc ingest&#xa;202 Accepted" style="text;html=1;align=center;fontSize=9;strokeColor=none;fillColor=none;" vertex="1" parent="grp-api">
+      <mxGeometry x="260" y="310" width="100" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="ep-desc-manage" value="List/delete RAG&#xa;documents" style="text;html=1;align=center;fontSize=9;strokeColor=none;fillColor=none;" vertex="1" parent="grp-api">
+      <mxGeometry x="385" y="310" width="100" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="ep-desc-user" value="User info &amp;&#xa;account delete" style="text;html=1;align=center;fontSize=9;strokeColor=none;fillColor=none;" vertex="1" parent="grp-api">
+      <mxGeometry x="510" y="310" width="100" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="ep-desc-worker" value="Slide-window chunk&#xa;+ embed + write" style="text;html=1;align=center;fontSize=9;strokeColor=none;fillColor=none;" vertex="1" parent="grp-api">
+      <mxGeometry x="260" y="600" width="100" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- API GW → Lambdas (within grp-api) -->
+    <mxCell id="e-apigw-create" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=1.5;" edge="1" source="apigw" target="lam-create" parent="grp-api">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e-apigw-chat" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=1.5;" edge="1" source="apigw" target="lam-chat" parent="grp-api">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e-apigw-ingest" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=1.5;" edge="1" source="apigw" target="lam-ingest" parent="grp-api">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e-apigw-manage" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=1.5;" edge="1" source="apigw" target="lam-manage" parent="grp-api">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e-apigw-user" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=1.5;" edge="1" source="apigw" target="lam-user" parent="grp-api">
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
 
     <!-- ============================================================
-         AWS マネージドサービス
+         SWIM LANE 4 — REAL-TIME
          ============================================================ -->
-
-    <mxCell id="n_cognito" value="&lt;b&gt;Amazon Cognito&lt;/b&gt;&lt;br/&gt;ユーザー認証・管理"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=center;"
+    <mxCell id="grp-realtime" value="Real-time Communication"
+      style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],
+                     [0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];
+             shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;grStroke=0;
+             verticalLabelPosition=top;verticalAlign=bottom;
+             fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=15;sketch=0;"
       vertex="1" parent="1">
-      <mxGeometry x="40" y="510" width="165" height="70" as="geometry" />
+      <mxGeometry x="1060" y="90" width="360" height="260" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_chime" value="&lt;b&gt;Chime SDK Meetings&lt;/b&gt;&lt;br/&gt;ビデオ会議基盤"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="235" y="510" width="165" height="70" as="geometry" />
+    <!-- Chime SDK -->
+    <mxCell id="chime" value="Amazon Chime SDK&#xa;Meetings&#xa;(WebRTC video/audio)"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.chime;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-realtime">
+      <mxGeometry x="60" y="90" width="60" height="60" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_transcribe" value="&lt;b&gt;Amazon Transcribe&lt;/b&gt;&lt;br/&gt;音声 → テキスト (ja-JP)"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="430" y="510" width="165" height="70" as="geometry" />
+    <!-- Transcribe -->
+    <mxCell id="transcribe" value="Amazon Transcribe&#xa;(ja-JP, streaming)"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.transcribe;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-realtime">
+      <mxGeometry x="230" y="90" width="60" height="60" as="geometry" />
     </mxCell>
 
-    <mxCell id="n_agentcore" value="&lt;b&gt;Bedrock AgentCore&lt;/b&gt;&lt;br/&gt;Claude Sonnet 4.6&lt;br/&gt;&lt;font color=&quot;#666666&quot;&gt;会話履歴 自動管理 + Vision&lt;/font&gt;"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="625" y="497" width="190" height="83" as="geometry" />
-    </mxCell>
-
-    <mxCell id="n_polly" value="&lt;b&gt;Amazon Polly&lt;/b&gt;&lt;br/&gt;Neural TTS (Kazuha)"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="840" y="510" width="165" height="70" as="geometry" />
-    </mxCell>
-
-    <mxCell id="n_s3vectors" value="&lt;b&gt;S3 Vectors&lt;/b&gt;&lt;br/&gt;RAG ベクトルインデックス&lt;br/&gt;&lt;font color=&quot;#666666&quot;&gt;Titan Embeddings V2 (1024 次元)&lt;/font&gt;"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="1035" y="497" width="185" height="83" as="geometry" />
-    </mxCell>
-
-    <mxCell id="n_dynamo" value="&lt;b&gt;Amazon DynamoDB&lt;/b&gt;&lt;br/&gt;利用記録・ユーザーデータ"
-      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=center;"
-      vertex="1" parent="1">
-      <mxGeometry x="1250" y="510" width="145" height="70" as="geometry" />
+    <!-- Chime → Transcribe -->
+    <mxCell id="e-chime-transcribe" value="audio stream" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontSize=9;" edge="1" source="chime" target="transcribe" parent="grp-realtime">
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
 
     <!-- ============================================================
-         凡例
+         SWIM LANE 5 — AI/ML
+         ============================================================ -->
+    <mxCell id="grp-ai" value="AI / ML"
+      style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],
+                     [0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];
+             shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;grStroke=0;
+             verticalLabelPosition=top;verticalAlign=bottom;
+             fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=15;sketch=0;"
+      vertex="1" parent="1">
+      <mxGeometry x="1060" y="400" width="700" height="470" as="geometry" />
+    </mxCell>
+
+    <!-- Bedrock AgentCore -->
+    <mxCell id="bedrock" value="Amazon Bedrock&#xa;AgentCore&#xa;Claude Sonnet 4.6"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.bedrock;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-ai">
+      <mxGeometry x="300" y="100" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- AgentCore session note -->
+    <mxCell id="bedrock-note" value="Session management&#xa;per MeetingId (sessionId)&#xa;autoPrepare=true"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;
+             fontSize=9;align=center;"
+      vertex="1" parent="grp-ai">
+      <mxGeometry x="270" y="180" width="120" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- Titan Embeddings -->
+    <mxCell id="titan" value="Titan Embeddings V2&#xa;(1024-dim, cosine)"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.bedrock;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=10;"
+      vertex="1" parent="grp-ai">
+      <mxGeometry x="80" y="100" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Polly -->
+    <mxCell id="polly" value="Amazon Polly&#xa;Neural TTS&#xa;Kazuha (ja-JP)"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.polly;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-ai">
+      <mxGeometry x="540" y="100" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Polly output note -->
+    <mxCell id="polly-note" value="Returns Base64 MP3&#xa;in API response"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;
+             fontSize=9;align=center;"
+      vertex="1" parent="grp-ai">
+      <mxGeometry x="515" y="180" width="110" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- Bedrock → Polly (within grp-ai) -->
+    <mxCell id="e-bedrock-polly" value="response text" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontSize=9;" edge="1" source="bedrock" target="polly" parent="grp-ai">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ============================================================
+         SWIM LANE 6 — DATA STORAGE
+         ============================================================ -->
+    <mxCell id="grp-data" value="Data Storage"
+      style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],
+                     [0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];
+             shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;grStroke=0;
+             verticalLabelPosition=top;verticalAlign=bottom;
+             fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=15;sketch=0;"
+      vertex="1" parent="1">
+      <mxGeometry x="1810" y="90" width="560" height="780" as="geometry" />
+    </mxCell>
+
+    <!-- S3 Vectors -->
+    <mxCell id="s3vectors" value="Amazon S3 Vectors&#xa;RAG Index&#xa;index: documents&#xa;1024-dim / cosine"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-data">
+      <mxGeometry x="70" y="80" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- SQS -->
+    <mxCell id="sqs" value="Amazon SQS&#xa;chime-ai-ingest-queue&#xa;vis. timeout: 1800s"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-data">
+      <mxGeometry x="70" y="280" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- SQS DLQ -->
+    <mxCell id="sqs-dlq" value="SQS DLQ"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=10;"
+      vertex="1" parent="grp-data">
+      <mxGeometry x="230" y="285" width="50" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- SQS → DLQ (within grp-data) -->
+    <mxCell id="e-sqs-dlq" value="failed msgs" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;dashed=1;dashPattern=6 3;fontSize=9;" edge="1" source="sqs" target="sqs-dlq" parent="grp-data">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- DynamoDB Usage Records -->
+    <mxCell id="dynamo-usage" value="DynamoDB&#xa;Usage Records&#xa;PK=userId&#xa;SK=YYYYMMDD#uuid&#xa;GSI=sessionId-index"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-data">
+      <mxGeometry x="320" y="80" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- DynamoDB Conversations (legacy) -->
+    <mxCell id="dynamo-conv" value="DynamoDB&#xa;Conversations&#xa;(legacy / backward compat)"
+      style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;
+             labelBackgroundColor=#ffffff;sketch=0;fontStyle=1;fontSize=11;"
+      vertex="1" parent="grp-data">
+      <mxGeometry x="450" y="80" width="60" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- ============================================================
+         CROSS-LANE EDGES
          ============================================================ -->
 
-    <mxCell id="legend" value="&lt;b&gt;凡例&lt;/b&gt;"
-      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;fontSize=12;fontStyle=1;"
-      vertex="1" parent="1">
-      <mxGeometry x="1090" y="100" width="80" height="30" as="geometry" />
+    <!-- User → Cognito (login) -->
+    <mxCell id="e-user-cognito" value="signIn / signUp&#xa;(Amplify v6)"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=1.5;
+             dashed=1;dashPattern=6 3;fontSize=9;fontColor=#9673a6;
+             labelBackgroundColor=#ffffff;"
+      edge="1" source="user" target="cognito" parent="1">
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
 
-    <mxCell id="leg_sync" value="同期通信"
-      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;"
-      vertex="1" parent="1">
-      <mxGeometry x="1120" y="135" width="100" height="25" as="geometry" />
+    <!-- Amplify → API GW -->
+    <mxCell id="e-amplify-apigw" value="REST calls + JWT Bearer"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;
+             fontSize=9;fontColor=#b85450;labelBackgroundColor=#ffffff;"
+      edge="1" source="amplify" target="apigw" parent="1">
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
-    <mxCell id="leg_sync_line" value=""
-      style="edgeStyle=none;html=1;strokeColor=#333333;strokeWidth=2;"
-      edge="1" parent="1">
+
+    <!-- Cognito → API GW (JWT validation) -->
+    <mxCell id="e-cognito-apigw" value="JWT validation"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=1.5;
+             dashed=1;dashPattern=6 3;fontSize=9;fontColor=#9673a6;
+             labelBackgroundColor=#ffffff;"
+      edge="1" source="cognito" target="apigw" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-create → Chime SDK -->
+    <mxCell id="e-create-chime" value="CreateMeeting&#xa;/ JoinMeeting"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1.5;
+             fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-create" target="chime" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-chat → Titan Embeddings -->
+    <mxCell id="e-chat-titan" value="vectorize user input"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=1.5;
+             fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-chat" target="titan" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Titan → S3 Vectors (RAG search) -->
+    <mxCell id="e-titan-s3v" value="top-3 cosine search"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;
+             dashed=1;dashPattern=6 3;fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="titan" target="s3vectors" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-chat → Bedrock AgentCore -->
+    <mxCell id="e-chat-bedrock" value="InvokeAgent&#xa;(sessionId=MeetingId)"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;
+             fontSize=9;fontColor=#d6b656;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-chat" target="bedrock" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Polly → ai-chat response (audio Base64) -->
+    <mxCell id="e-polly-chat" value="Base64 MP3"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=1.5;
+             fontSize=9;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;
+             entryX=1;entryY=0.5;"
+      edge="1" source="polly" target="lam-chat" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-chat → DynamoDB Usage (async) -->
+    <mxCell id="e-chat-dynamo" value="write usage record (async)&#xa;ragUsed / frameAnalyzed flags"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;
+             dashed=1;dashPattern=6 3;fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-chat" target="dynamo-usage" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-ingest → SQS -->
+    <mxCell id="e-ingest-sqs" value="SendMessage&#xa;202 Accepted"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;
+             fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-ingest" target="sqs" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- SQS → lam-worker (trigger) -->
+    <mxCell id="e-sqs-worker" value="SQS trigger"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=1.5;
+             fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="sqs" target="lam-worker" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-worker → Titan (embed chunks) -->
+    <mxCell id="e-worker-titan" value="embed chunks&#xa;(parallel x5)"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=1.5;
+             fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-worker" target="titan" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-worker → S3 Vectors (batch write) -->
+    <mxCell id="e-worker-s3v" value="batch write (25/batch)"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;
+             fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-worker" target="s3vectors" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-manage → S3 Vectors (list/delete) -->
+    <mxCell id="e-manage-s3v" value="List / Delete vectors"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;
+             fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-manage" target="s3vectors" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-user → Cognito (AdminAPI) -->
+    <mxCell id="e-user-cognito2" value="AdminGetUser&#xa;AdminDeleteUser"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=1.5;
+             fontSize=9;fontColor=#9673a6;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-user" target="cognito" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- lam-user → DynamoDB (delete user data) -->
+    <mxCell id="e-user-dynamo" value="BatchDelete user data"
+      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=1.5;
+             dashed=1;dashPattern=6 3;fontSize=9;labelBackgroundColor=#ffffff;"
+      edge="1" source="lam-user" target="dynamo-usage" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ============================================================
+         CALLOUT NOTES
+         ============================================================ -->
+
+    <!-- AgentCore Vision note -->
+    <mxCell id="note-vision" value="Screen share frames&#xa;sent via sessionState.files&#xa;(AgentCore Vision / Multimodal)"
+      style="shape=callout;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;
+             fontSize=9;align=center;perimeter=calloutPerimeter;"
+      vertex="1" parent="1">
+      <mxGeometry x="1060" y="920" width="200" height="65" as="geometry" />
+    </mxCell>
+
+    <!-- Screen share annotation arrow -->
+    <mxCell id="e-note-vision" value=""
+      style="edgeStyle=none;html=1;strokeColor=#d6b656;dashed=1;strokeWidth=1;"
+      edge="1" source="note-vision" target="bedrock" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Marketplace note for jp.* models -->
+    <mxCell id="note-marketplace" value="jp.* inference profile:&#xa;Bedrock role needs&#xa;aws-marketplace:ViewSubscriptions"
+      style="shape=callout;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;
+             fontSize=9;align=center;perimeter=calloutPerimeter;"
+      vertex="1" parent="1">
+      <mxGeometry x="1295" y="560" width="200" height="65" as="geometry" />
+    </mxCell>
+
+    <!-- 202 Async note -->
+    <mxCell id="note-async" value="Async: 202 returned&#xa;immediately to caller.&#xa;Worker processes via SQS."
+      style="shape=callout;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;
+             fontSize=9;align=center;perimeter=calloutPerimeter;"
+      vertex="1" parent="1">
+      <mxGeometry x="1810" y="430" width="180" height="65" as="geometry" />
+    </mxCell>
+
+    <!-- ============================================================
+         LEGEND
+         ============================================================ -->
+    <mxCell id="legend-box" value="Legend"
+      style="swimlane;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;
+             fontStyle=1;fontSize=13;startSize=28;"
+      vertex="1" parent="1">
+      <mxGeometry x="30" y="930" width="330" height="230" as="geometry" />
+    </mxCell>
+
+    <!-- Solid line -->
+    <mxCell id="leg-solid-line" value="" style="edgeStyle=none;html=1;strokeColor=#333333;strokeWidth=2;" edge="1" parent="legend-box">
       <mxGeometry relative="1" as="geometry">
-        <mxPoint x="1090" y="147" as="sourcePoint" />
-        <mxPoint x="1118" y="147" as="targetPoint" />
+        <mxPoint x="20" y="65" as="sourcePoint" />
+        <mxPoint x="70" y="65" as="targetPoint" />
       </mxGeometry>
     </mxCell>
-
-    <mxCell id="leg_async" value="非同期 / オプション"
-      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;"
-      vertex="1" parent="1">
-      <mxGeometry x="1120" y="165" width="160" height="25" as="geometry" />
+    <mxCell id="leg-solid-txt" value="Synchronous call" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="legend-box">
+      <mxGeometry x="80" y="55" width="200" height="22" as="geometry" />
     </mxCell>
-    <mxCell id="leg_async_line" value=""
-      style="edgeStyle=none;html=1;dashed=1;dashPattern=6 3;strokeColor=#9673a6;strokeWidth=2;"
-      edge="1" parent="1">
+
+    <!-- Dashed line -->
+    <mxCell id="leg-dash-line" value="" style="edgeStyle=none;html=1;strokeColor=#333333;strokeWidth=2;dashed=1;dashPattern=6 3;" edge="1" parent="legend-box">
       <mxGeometry relative="1" as="geometry">
-        <mxPoint x="1090" y="177" as="sourcePoint" />
-        <mxPoint x="1118" y="177" as="targetPoint" />
+        <mxPoint x="20" y="100" as="sourcePoint" />
+        <mxPoint x="70" y="100" as="targetPoint" />
       </mxGeometry>
     </mxCell>
-
-    <mxCell id="leg_frame" value="画面フレーム (JPEG)"
-      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;"
-      vertex="1" parent="1">
-      <mxGeometry x="1120" y="195" width="160" height="25" as="geometry" />
-    </mxCell>
-    <mxCell id="leg_frame_line" value=""
-      style="edgeStyle=none;html=1;dashed=1;dashPattern=6 3;strokeColor=#3b82f6;strokeWidth=2;"
-      edge="1" parent="1">
-      <mxGeometry relative="1" as="geometry">
-        <mxPoint x="1090" y="207" as="sourcePoint" />
-        <mxPoint x="1118" y="207" as="targetPoint" />
-      </mxGeometry>
+    <mxCell id="leg-dash-txt" value="Async / optional / auth" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="legend-box">
+      <mxGeometry x="80" y="90" width="200" height="22" as="geometry" />
     </mxCell>
 
-    <mxCell id="leg_feedback" value="フィードバック"
-      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;"
-      vertex="1" parent="1">
-      <mxGeometry x="1120" y="225" width="160" height="25" as="geometry" />
+    <!-- Color squares -->
+    <mxCell id="leg-c1" value="" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="legend-box">
+      <mxGeometry x="20" y="130" width="18" height="18" as="geometry" />
     </mxCell>
-    <mxCell id="leg_feedback_line" value=""
-      style="edgeStyle=none;html=1;strokeColor=#10b981;strokeWidth=2;"
-      edge="1" parent="1">
-      <mxGeometry relative="1" as="geometry">
-        <mxPoint x="1090" y="237" as="sourcePoint" />
-        <mxPoint x="1118" y="237" as="targetPoint" />
-      </mxGeometry>
+    <mxCell id="leg-c1-txt" value="Frontend / Storage" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="legend-box">
+      <mxGeometry x="46" y="128" width="200" height="22" as="geometry" />
     </mxCell>
 
-    <!-- ============================================================
-         エッジ: ブラウザ → API Gateway
-         ============================================================ -->
-
-    <!-- useMeeting → API GW -->
-    <mxCell id="e_meet_api" value="POST /meetings + JWT"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitPerimeter=0;entryX=0;entryY=0.15;entryPerimeter=0;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_useMeeting" target="n_apigw" parent="1">
-      <mxGeometry relative="1" as="geometry" />
+    <mxCell id="leg-c2" value="" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="legend-box">
+      <mxGeometry x="20" y="158" width="18" height="18" as="geometry" />
+    </mxCell>
+    <mxCell id="leg-c2-txt" value="Authentication (Cognito)" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="legend-box">
+      <mxGeometry x="46" y="156" width="200" height="22" as="geometry" />
     </mxCell>
 
-    <!-- useAIConversation → API GW -->
-    <mxCell id="e_ai_api" value="POST /ai-chat { text, sessionId, frame? }"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitPerimeter=0;entryX=0;entryY=0.5;entryPerimeter=0;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_useAI" target="n_apigw" parent="1">
-      <mxGeometry relative="1" as="geometry" />
+    <mxCell id="leg-c3" value="" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="legend-box">
+      <mxGeometry x="20" y="186" width="18" height="18" as="geometry" />
+    </mxCell>
+    <mxCell id="leg-c3-txt" value="API Layer" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="legend-box">
+      <mxGeometry x="46" y="184" width="200" height="22" as="geometry" />
     </mxCell>
 
-    <!-- useAuth → API GW -->
-    <mxCell id="e_auth_api" value="GET/DELETE /users"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitPerimeter=0;entryX=0;entryY=0.75;entryPerimeter=0;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_useAuth" target="n_apigw" parent="1">
-      <mxGeometry relative="1" as="geometry" />
+    <mxCell id="leg-c4" value="" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="legend-box">
+      <mxGeometry x="175" y="130" width="18" height="18" as="geometry" />
+    </mxCell>
+    <mxCell id="leg-c4-txt" value="AI / ML" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="legend-box">
+      <mxGeometry x="201" y="128" width="120" height="22" as="geometry" />
     </mxCell>
 
-    <!-- DocumentUpload → API GW -->
-    <mxCell id="e_doc_api" value="POST /documents"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitPerimeter=0;entryX=0;entryY=0.62;entryPerimeter=0;fontSize=10;labelBackgroundColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_docUpload" target="n_apigw" parent="1">
-      <mxGeometry relative="1" as="geometry" />
+    <mxCell id="leg-c5" value="" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="legend-box">
+      <mxGeometry x="175" y="158" width="18" height="18" as="geometry" />
     </mxCell>
-
-    <!-- ============================================================
-         エッジ: useScreenShare → useAIConversation (画面フレーム)
-         ============================================================ -->
-
-    <mxCell id="e_screen_ai" value="captureFrame() → Base64 JPEG"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitPerimeter=0;entryX=0.5;entryY=0;entryPerimeter=0;dashed=1;dashPattern=6 3;strokeColor=#3b82f6;strokeWidth=2;fontSize=10;labelBackgroundColor=#ffffff;fontColor=#3b82f6;"
-      edge="1" source="n_useScreen" target="n_useAI" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- ============================================================
-         エッジ: API Gateway → Lambda
-         ============================================================ -->
-
-    <mxCell id="e_apigw_create" value=""
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.15;exitPerimeter=0;entryX=0;entryY=0.5;entryPerimeter=0;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_apigw" target="n_lCreate" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <mxCell id="e_apigw_chat" value=""
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.38;exitPerimeter=0;entryX=0;entryY=0.5;entryPerimeter=0;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_apigw" target="n_lChat" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <mxCell id="e_apigw_ingest" value=""
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.62;exitPerimeter=0;entryX=0;entryY=0.5;entryPerimeter=0;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_apigw" target="n_lIngest" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <mxCell id="e_apigw_user" value=""
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.85;exitPerimeter=0;entryX=0;entryY=0.5;entryPerimeter=0;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_apigw" target="n_lUser" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- ============================================================
-         エッジ: Lambda → AWS サービス
-         ============================================================ -->
-
-    <!-- create-meeting → Chime SDK -->
-    <mxCell id="e_create_chime" value=""
-      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_lCreate" target="n_chime" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- Chime SDK → Transcribe -->
-    <mxCell id="e_chime_transcribe" value=""
-      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#333333;strokeWidth=1.5;"
-      edge="1" source="n_chime" target="n_transcribe" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- Transcribe → useMeeting (フィードバックループ) -->
-    <mxCell id="e_transcribe_meet" value="TranscriptEvent (ja-JP)"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=0.5;exitPerimeter=0;entryX=0.5;entryY=1;entryPerimeter=0;strokeColor=#10b981;strokeWidth=2;fontSize=10;labelBackgroundColor=#ffffff;fontColor=#10b981;"
-      edge="1" source="n_transcribe" target="n_useMeeting" parent="1">
-      <mxGeometry relative="1" as="geometry">
-        <Array as="points">
-          <mxPoint x="390" y="545" />
-          <mxPoint x="137" y="545" />
-          <mxPoint x="137" y="390" />
-        </Array>
-      </mxGeometry>
-    </mxCell>
-
-    <!-- ai-chat → Bedrock AgentCore -->
-    <mxCell id="e_chat_agent" value="InvokeAgent(sessionId, inputText, frame?)"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;strokeWidth=2;fontSize=10;labelBackgroundColor=#ffffff;fontColor=#d79b00;"
-      edge="1" source="n_lChat" target="n_agentcore" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- ai-chat → S3 Vectors (RAG, dashed) -->
-    <mxCell id="e_chat_s3v" value="QueryVectors (RAG, frame なし時)"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=6 3;strokeColor=#9673a6;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;fontColor=#9673a6;"
-      edge="1" source="n_lChat" target="n_s3vectors" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- ai-chat → Polly -->
-    <mxCell id="e_chat_polly" value="SynthesizeSpeech"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#333333;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;"
-      edge="1" source="n_lChat" target="n_polly" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- ai-chat → DynamoDB (非同期, dashed) -->
-    <mxCell id="e_chat_dynamo" value="利用記録 (非同期)"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;dashPattern=6 3;strokeColor=#666666;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;"
-      edge="1" source="n_lChat" target="n_dynamo" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- ingest-document → S3 Vectors -->
-    <mxCell id="e_ingest_s3v" value="PutVectors (チャンク)"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#333333;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;"
-      edge="1" source="n_lIngest" target="n_s3vectors" parent="1">
-      <mxGeometry relative="1" as="geometry" />
-    </mxCell>
-
-    <!-- user-management → Cognito -->
-    <mxCell id="e_user_cognito" value="AdminGetUser / AdminDeleteUser"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;fontColor=#b85450;"
-      edge="1" source="n_lUser" target="n_cognito" parent="1">
-      <mxGeometry relative="1" as="geometry">
-        <Array as="points">
-          <mxPoint x="780" y="337" />
-          <mxPoint x="122" y="337" />
-          <mxPoint x="122" y="510" />
-        </Array>
-      </mxGeometry>
-    </mxCell>
-
-    <!-- useAuth → Cognito (Amplify direct, dashed) -->
-    <mxCell id="e_auth_cognito" value="signIn / signUp (Amplify v6)"
-      style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=1;exitPerimeter=0;entryX=0.5;entryY=0;entryPerimeter=0;dashed=1;dashPattern=6 3;strokeColor=#b85450;strokeWidth=1.5;fontSize=10;labelBackgroundColor=#ffffff;fontColor=#b85450;"
-      edge="1" source="n_useAuth" target="n_cognito" parent="1">
-      <mxGeometry relative="1" as="geometry">
-        <Array as="points">
-          <mxPoint x="250" y="185" />
-          <mxPoint x="15" y="185" />
-          <mxPoint x="15" y="545" />
-          <mxPoint x="122" y="545" />
-        </Array>
-      </mxGeometry>
-    </mxCell>
-
-    <!-- ============================================================
-         タイトル
-         ============================================================ -->
-
-    <mxCell id="title" value="AI ビデオ会議システム — アーキテクチャ構成図"
-      style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;"
-      vertex="1" parent="1">
-      <mxGeometry x="20" y="10" width="1080" height="35" as="geometry" />
+    <mxCell id="leg-c5-txt" value="Real-time (Chime)" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="legend-box">
+      <mxGeometry x="201" y="156" width="120" height="22" as="geometry" />
     </mxCell>
 
   </root>
