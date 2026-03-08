@@ -1364,6 +1364,73 @@ test('AI アバターカードが表示される', async ({ page }) => {
 
 これにより「ログイン画面を確認して」「RAG フォームに文字を入力してボタンをクリックして」などの指示で Claude Code が実際のブラウザを操作し、スクリーンショット取得・UI 確認・不具合の早期発見ができます。コードレビューと並行して視覚的な動作確認が可能になります。
 
+### Vitest Fake Timers: デバウンス処理のテスト
+
+`useMeeting` 内の「2 秒間発話が途切れたら AI に送信する」デバウンス処理は、実時間を待たずに Vitest の Fake Timers で高速にテストできます。
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+
+describe('書き起こしデバウンス', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('2 秒経過するまで AI への送信関数が呼ばれないこと', () => {
+    const mockSend = vi.fn();
+    // accumulateTranscript で buffer に積む
+    act(() => { accumulateTranscript('こんにちは'); });
+
+    // 1 秒後: まだ送信されない
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(mockSend).not.toHaveBeenCalled();
+
+    // 合計 2 秒後: 送信される
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(mockSend).toHaveBeenCalledWith('こんにちは');
+  });
+});
+```
+
+### Lambda の AWS SDK モックテスト (aws-sdk-client-mock)
+
+Lambda ユニットテストで実際に AWS へリクエストを送ると課金が発生し、CI の速度も落ちます。`aws-sdk-client-mock` を使えば Bedrock・S3 Vectors の応答をモック化し、プロンプト構築ロジック（XML タグ挿入・RAG コンテキスト付加など）を高速に検証できます。
+
+```typescript
+import { mockClient } from 'aws-sdk-client-mock';
+import { BedrockAgentRuntimeClient, InvokeAgentCommand } from '@aws-sdk/client-bedrock-agent-runtime';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+
+const agentMock = mockClient(BedrockAgentRuntimeClient);
+const bedrockMock = mockClient(BedrockRuntimeClient);
+
+beforeEach(() => {
+  agentMock.reset();
+  bedrockMock.reset();
+
+  // Titan Embeddings のモック (1024 次元のゼロベクトルを返す)
+  bedrockMock.on(InvokeModelCommand).resolves({
+    body: new TextEncoder().encode(JSON.stringify({ embedding: new Array(1024).fill(0) })),
+  });
+
+  // AgentCore のモック (ストリーミング応答をシミュレート)
+  agentMock.on(InvokeAgentCommand).resolves({
+    completion: (async function* () {
+      yield { chunk: { bytes: new TextEncoder().encode('テスト応答です') } };
+    })(),
+  });
+});
+
+it('RAG コンテキストが XML タグで正しく包まれる', async () => {
+  const result = await invokeAgentWithContext('sessionId-123', 'S3 Vectors とは？');
+  // AgentCore に渡された inputText に XML タグが含まれることを検証
+  const call = agentMock.calls()[0].args[0].input;
+  expect(call.inputText).toContain('<context>');
+  expect(call.inputText).toContain('<user_input>');
+  expect(result).toBe('テスト応答です');
+});
+```
+
 ### 静的解析 (ESLint + Prettier)
 
 ```bash
@@ -1372,7 +1439,7 @@ npm run format      # Prettier 自動整形
 npm run lint:fix    # ESLint 自動修正
 ```
 
-ESLint v9 のフラット設定ファイルを使用しています。
+ESLint v9 のフラット設定ファイルを使用しています。`react-hooks/exhaustive-deps` を **`"error"`** にすることで、ステイルクロージャの原因となる依存配列の指定漏れをデプロイ前に検出できます（第1章の「stale closure に注意」で触れた問題がこのルールで未然に防げます）。
 
 ```javascript
 // frontend/eslint.config.js
@@ -1382,7 +1449,14 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   tseslint.configs.recommended,
-  { plugins: { 'react-hooks': reactHooks }, rules: reactHooks.configs.recommended.rules },
+  {
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      // 依存配列の指定漏れを warning ではなく error にしてデプロイをブロック
+      'react-hooks/exhaustive-deps': 'error',
+    },
+  },
   prettier,  // Prettier との競合ルールを無効化
 );
 ```
@@ -1523,7 +1597,17 @@ Amplify の CloudFront ディストリビューションはグローバルなた
 
 Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2025 年時点で最新の AWS サービス群を組み合わせることで、会話履歴管理や RAG をほぼマネージドサービスに任せつつ、シンプルなコードで本格的な AI ビデオ会議システムを実現できました。
 
-特に Bedrock AgentCore は、従来の Converse API + DynamoDB による自前セッション管理と比べて Lambda の実装がシンプルになります。S3 Vectors も、ベクトル DB のインフラ管理が不要になる点で開発体験の改善に寄与します。
+本システムで扱った技術領域を整理すると、以下のすべてが一つのモノレポに収まっています。
+
+| 領域 | 技術スタック |
+|------|------------|
+| **インフラ (IaC)** | AWS CDK (TypeScript)、CodeCommit + CodePipeline |
+| **バックエンド** | Lambda、Bedrock AgentCore、S3 Vectors + SQS、Cognito |
+| **フロントエンド** | React + Vite、Chime SDK JS、Amplify Hosting |
+| **セキュリティ** | Cognito JWT 認証、CSP / HSTS、Amplify WAF 統合 |
+| **CI/CD & 品質保証** | Vitest、Playwright、ESLint (`exhaustive-deps: error`)、Prettier |
+
+特に Bedrock AgentCore は、従来の Converse API + DynamoDB による自前セッション管理と比べて Lambda の実装がシンプルになります。S3 Vectors も、ベクトル DB のインフラ管理が不要になる点で開発体験の改善に寄与します。SQS による非同期 RAG 登録は API Gateway の 29 秒タイムアウト制約を根本解決しています。
 
 インフラ面では **CodeCommit + CodePipeline + Amplify によるモノレポ CI/CD** を整備し、`git push` 一発でフロントエンドとインフラが同時に自動デプロイされる体制を実現しています。セキュリティ面でも `customHttp.yml` による HTTP セキュリティヘッダーと Amplify ネイティブの WAF 統合により、PoC 品質からエンタープライズ本番品質へのギャップを埋めています。
 
