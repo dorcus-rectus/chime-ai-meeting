@@ -142,8 +142,9 @@ export function LoginScreen({ auth }: Props) {
         {mode === 'login' && (
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <label style={s.label}>メールアドレス</label>
+              <label htmlFor="login-email" style={s.label}>メールアドレス</label>
               <input
+                id="login-email"
                 style={s.input}
                 type="email"
                 value={email}
@@ -154,8 +155,9 @@ export function LoginScreen({ auth }: Props) {
               />
             </div>
             <div>
-              <label style={s.label}>パスワード</label>
+              <label htmlFor="login-password" style={s.label}>パスワード</label>
               <input
+                id="login-password"
                 style={s.input}
                 type="password"
                 value={password}
@@ -174,8 +176,9 @@ export function LoginScreen({ auth }: Props) {
         {mode === 'register' && (
           <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <label style={s.label}>メールアドレス</label>
+              <label htmlFor="reg-email" style={s.label}>メールアドレス</label>
               <input
+                id="reg-email"
                 style={s.input}
                 type="email"
                 value={email}
@@ -185,8 +188,9 @@ export function LoginScreen({ auth }: Props) {
               />
             </div>
             <div>
-              <label style={s.label}>パスワード (8文字以上・大小英字・数字)</label>
+              <label htmlFor="reg-password" style={s.label}>パスワード (8文字以上・大小英字・数字)</label>
               <input
+                id="reg-password"
                 style={s.input}
                 type="password"
                 value={password}
@@ -205,8 +209,9 @@ export function LoginScreen({ auth }: Props) {
         {mode === 'confirm' && (
           <form onSubmit={handleConfirm} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <label style={s.label}>確認コード (6桁)</label>
+              <label htmlFor="confirm-code" style={s.label}>確認コード (6桁)</label>
               <input
+                id="confirm-code"
                 style={s.input}
                 type="text"
                 value={confirmCode}

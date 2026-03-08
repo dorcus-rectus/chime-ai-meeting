@@ -4,10 +4,24 @@ frontend:
     preBuild:
       commands:
         - cd frontend
-        - npm install
+        - npm ci
+        # Playwright ブラウザをキャッシュディレクトリへインストール
+        - npx playwright install chromium --with-deps
     build:
       commands:
+        # ── 単体テスト (Vitest) ──────────────────────────────────────────
+        - npm run lint
+        - npm run test -- --run --reporter=verbose
+        # ── ビルド ───────────────────────────────────────────────────────
         - npm run build
+        # ── E2E テスト (Playwright / 認証不要のみ) ──────────────────────
+        # TEST_EMAIL / TEST_PASSWORD が設定されている場合は認証テストも実行
+        - |
+          if [ -n "$TEST_EMAIL" ] && [ -n "$TEST_PASSWORD" ]; then
+            npx playwright test --reporter=line
+          else
+            npx playwright test e2e/login.spec.ts --reporter=line
+          fi
   artifacts:
     baseDirectory: frontend/dist
     files:
@@ -15,3 +29,4 @@ frontend:
   cache:
     paths:
       - frontend/node_modules/**/*
+      - frontend/.cache/ms-playwright/**/*
