@@ -1933,6 +1933,134 @@ describe('書き起こしデバウンス', () => {
 });
 ```
 
+### CDK インフラテスト (Jest + cdk-nag)
+
+フロントエンドと同様に、CDK スタックも **TDD** で開発しています。`cdk/test/chime-ai-meeting-stack.test.ts` に Jest ベースのテストを配置し、以下の 3 種類を組み合わせています。
+
+#### ① スナップショットテスト
+
+CloudFormation テンプレート全体を JSON としてスナップショットに保存し、インフラの意図しない変更を検出します。
+
+```typescript
+// cdk/test/chime-ai-meeting-stack.test.ts
+const app = new cdk.App();
+const stack = new ChimeAiMeetingStack(app, 'TestStack', {
+  env: { account: '123456789012', region: 'ap-northeast-1' },
+});
+const template = Template.fromStack(stack);
+
+describe('スナップショット', () => {
+  test('CloudFormation テンプレートがスナップショットと一致する', () => {
+    expect(template.toJSON()).toMatchSnapshot();
+  });
+});
+```
+
+インフラを意図的に変更した場合は `npm run test:update` でベースラインを更新します:
+
+```bash
+cd cdk
+npm test              # 全テスト実行 (52件)
+npm run test:update   # スナップショット更新
+```
+
+スナップショットファイル (`cdk/test/__snapshots__/`) はリポジトリにコミットしておくことで、PR レビュー時に CloudFormation の差分を JSON で確認できます。
+
+#### ② Fine-grained Assertions
+
+`template.hasResourceProperties()` や `template.resourceCountIs()` で個別リソースのプロパティを検証します。Lambda のタイムアウト・メモリ、Cognito のパスワードポリシー、DynamoDB の GSI など、設計上重要な値を明示的にテストします。
+
+```typescript
+// Cognito: セルフサインアップ有効・メールアドレス認証
+describe('Cognito User Pool', () => {
+  test('セルフサインアップが有効になっている', () => {
+    template.hasResourceProperties('AWS::Cognito::UserPool', {
+      AdminCreateUserConfig: { AllowAdminCreateUserOnly: false },
+    });
+  });
+
+  test('パスワードポリシーが設定されている (8文字以上・大小英数記号必須)', () => {
+    template.hasResourceProperties('AWS::Cognito::UserPool', {
+      Policies: {
+        PasswordPolicy: {
+          MinimumLength: 8,
+          RequireLowercase: true,
+          RequireUppercase: true,
+          RequireNumbers: true,
+          RequireSymbols: true,
+        },
+      },
+    });
+  });
+});
+
+// Lambda: タイムアウト・メモリ
+describe('Lambda 関数', () => {
+  test('ai-chat Lambda のタイムアウトが 90 秒・メモリ 512MB', () => {
+    template.hasResourceProperties('AWS::Lambda::Function', {
+      FunctionName: 'chime-ai-chat',
+      Timeout: 90,
+      MemorySize: 512,
+      Runtime: 'nodejs24.x',
+    });
+  });
+});
+
+// DynamoDB: GSI
+describe('DynamoDB テーブル', () => {
+  test('UsageRecords テーブルに sessionId-index GSI が定義されている', () => {
+    template.hasResourceProperties('AWS::DynamoDB::Table', {
+      TableName: 'ChimeAiUsageRecords',
+      GlobalSecondaryIndexes: Match.arrayWith([
+        Match.objectLike({
+          IndexName: 'sessionId-index',
+          Projection: { ProjectionType: 'ALL' },
+        }),
+      ]),
+    });
+  });
+});
+```
+
+`Match.arrayWith()` / `Match.objectLike()` を使うと、配列の部分一致・オブジェクトの部分一致が検証できるため、CDK が自動追加するメタデータに左右されない堅牢なテストが書けます。
+
+#### ③ cdk-nag セキュリティ監査
+
+`cdk-nag` は AWS Well-Architected Framework のベストプラクティスを CDK レベルで検証するライブラリです。`AwsSolutionsChecks` を `Aspects` として適用すると、IAM の最小権限・Cognito の MFA・SQS の DLQ 設定などを自動チェックします。
+
+```typescript
+import { Aspects } from 'aws-cdk-lib';
+import { AwsSolutionsChecks, NagSuppressions } from 'cdk-nag';
+
+Aspects.of(app).add(new AwsSolutionsChecks({ verbose: false }));
+
+// 既知の違反は理由を明記して抑制
+NagSuppressions.addStackSuppressions(stack, [
+  { id: 'AwsSolutions-IAM5', reason: 'Bedrock/Polly/Chime はリソース ARN 指定不可のため * が必要' },
+  { id: 'AwsSolutions-COG3', reason: 'AdvancedSecurityMode は追加料金のため要件外' },
+  { id: 'AwsSolutions-COG7', reason: 'MFA は要件外' },
+  // ...
+]);
+
+describe('cdk-nag セキュリティ監査', () => {
+  test('抑制されていない ERROR レベルの nag 違反がないこと', () => {
+    const errors = Annotations.fromStack(stack).findError(
+      '*',
+      Match.stringLikeRegexp('AwsSolutions-.*'),
+    );
+    expect(errors).toHaveLength(0);
+  });
+});
+```
+
+抑制する際は `reason` を必ず記述します。これがコードレビュー時の「なぜこのルールを例外扱いにしたか」の根拠になります。
+
+:::message
+**スタックの合成はモジュール先頭で 1 回だけ**
+
+`new ChimeAiMeetingStack(...)` は各テストで毎回呼ぶと esbuild バンドルが複数回走り CI が遅くなります。モジュールのトップレベルで合成して `template` を共有するのがベストプラクティスです。
+:::
+
 ### Lambda の AWS SDK モックテスト (aws-sdk-client-mock)
 
 Lambda ユニットテストで実際に AWS へリクエストを送ると課金が発生し、CI の速度も落ちます。`aws-sdk-client-mock` を使えば Bedrock・S3 Vectors の応答をモック化し、プロンプト構築ロジック（XML タグ挿入・RAG コンテキスト付加など）を高速に検証できます。
