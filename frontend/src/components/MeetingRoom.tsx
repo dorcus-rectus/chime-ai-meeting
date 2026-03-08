@@ -322,16 +322,20 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
           </div>
 
           {/* ローカルカメラ */}
+          {/* Chime SDK が bindVideoElement で video 要素の style.transform を直接上書きするため、
+              mirror 用の transform はラッパー div に適用し Chime の干渉を避ける */}
           <div style={s.videoCard}>
-            <video
-              ref={localVideoRef as RefObject<HTMLVideoElement>}
-              autoPlay
-              muted
-              playsInline
-              style={{ ...s.localVideo, display: isVideoOn ? 'block' : 'none', transform: isDummyCamera ? 'none' : 'scaleX(-1)' }}
-            />
+            <div style={{ width: '100%', height: '100%', transform: isDummyCamera ? 'none' : 'scaleX(-1)' }}>
+              <video
+                ref={localVideoRef as RefObject<HTMLVideoElement>}
+                autoPlay
+                muted
+                playsInline
+                style={{ ...s.localVideo, display: isVideoOn ? 'block' : 'none' }}
+              />
+            </div>
             {!isVideoOn && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 40 }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>
                 👤
               </div>
             )}

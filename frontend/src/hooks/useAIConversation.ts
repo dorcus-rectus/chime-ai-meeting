@@ -19,6 +19,8 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
   // AudioContext は一度ユーザージェスチャーでアンロックすれば以降は自由に使える
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  // 再生のキャンセル検知用: stopSpeaking が呼ばれたら playId をインクリメントする
+  const playIdRef = useRef(0);
 
   /** マイクボタンや会議開始ボタンのクリック時に呼び出してAudioContextをアンロック */
   const unlockAudio = useCallback(() => {
@@ -35,16 +37,21 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
 
   const stopSpeaking = useCallback(() => {
     if (audioSourceRef.current) {
+      // onended を先にクリア: stop() 後に発火する onended が新しい再生の isSpeaking を
+      // false にしてしまう race condition を防ぐ
+      audioSourceRef.current.onended = null;
       try { audioSourceRef.current.stop(); } catch { /* 既に停止中 */ }
       audioSourceRef.current = null;
     }
+    playIdRef.current += 1; // 進行中の decodeAudioData を無効化
     setIsSpeaking(false);
   }, []);
 
   const playAudio = useCallback(
     (base64Audio: string): Promise<void> => {
       return new Promise((resolve) => {
-        stopSpeaking();
+        stopSpeaking(); // 既存の再生を停止し playIdRef をインクリメント
+        const myPlayId = playIdRef.current; // この再生に対応する ID を記録
 
         const ctx = audioContextRef.current;
         if (!ctx) {
@@ -67,9 +74,10 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
         // AudioContext 経由のため iOS/Android でも非ユーザージェスチャー時に再生可能
         ctx.decodeAudioData(arrayBuffer)
           .then((audioBuffer) => {
-            // 再生前に再度停止チェック (decodeAudioData は非同期)
-            if (!audioSourceRef.current && !isSpeaking) {
-              // stopSpeaking が呼ばれていたらスキップ
+            // decodeAudioData は非同期: その間に stopSpeaking が呼ばれた場合はスキップ
+            if (playIdRef.current !== myPlayId) {
+              resolve();
+              return;
             }
             const source = ctx.createBufferSource();
             source.buffer = audioBuffer;
@@ -90,14 +98,17 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
           });
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [stopSpeaking],
   );
 
   // 音声書き起こし・チャット入力共通の送信処理
   const sendTranscript = useCallback(
     async (userText: string, frameBase64?: string) => {
-      if (!userText.trim() || isProcessing || !sessionId) return;
+      if (!userText.trim() || !sessionId) return;
+      if (isProcessing) {
+        setError('前のメッセージを処理中です。完了後に再度お試しください。');
+        return;
+      }
 
       setIsProcessing(true);
       setError(null);

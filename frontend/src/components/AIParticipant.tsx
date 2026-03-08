@@ -1,4 +1,4 @@
-import { type CSSProperties } from 'react';
+import { type CSSProperties, useRef, useEffect } from 'react';
 
 interface AIParticipantProps {
   isSpeaking: boolean;
@@ -35,6 +35,15 @@ const corner: CSSProperties = {
 };
 
 export function AIParticipant({ isSpeaking, isProcessing, aiText }: AIParticipantProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // autoPlay 属性だけでは一部ブラウザで再生されないため、マウント時に明示的に play() を呼ぶ
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.play().catch(() => { /* autoplay blocked は無視 */ });
+  }, []);
+
   const statusColor = isProcessing ? '#f59e0b' : isSpeaking ? '#10b981' : '#00bfff';
   const statusText  = isProcessing ? '解析中...' : isSpeaking ? '応答中' : '待機中';
   const statusBg    = isProcessing ? 'rgba(245,158,11,0.2)' : isSpeaking ? 'rgba(16,185,129,0.2)' : 'rgba(0,191,255,0.15)';
@@ -55,6 +64,7 @@ export function AIParticipant({ isSpeaking, isProcessing, aiText }: AIParticipan
 
       {/* AI アバター映像 — React 19 では muted が HTML 属性として正しく出力される */}
       <video
+        ref={videoRef}
         src="/aibot.mp4"
         autoPlay
         loop
