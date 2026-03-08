@@ -36,8 +36,9 @@ frontend/playwright-report/
 frontend/test-results/
 frontend/blob-report/
 
-# Playwright スクリーンショット (ビジュアルリグレッション用ベースラインは管理対象外)
-frontend/e2e/**/*.png
+# Playwright テスト結果・一時ファイルは管理対象外
+# ※ *.spec.ts-snapshots/ 内のベースライン PNG は管理対象 (除外しない)
+frontend/e2e/test-results/**
 frontend/src/__tests__/**/*.png
 
 # ─── 環境変数・シークレット ─────────────────────────────────────────────────────
