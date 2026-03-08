@@ -18,6 +18,7 @@
 | AI 音声応答 | Amazon Polly Neural TTS (Kazuha) |
 | ユーザー認証・管理 | Amazon Cognito |
 | インフラのコード管理 | AWS CDK (TypeScript) |
+| CI/CD パイプライン | AWS CodeCommit + CodePipeline + Amplify |
 | フロントエンド | React + Vite + Amplify Hosting |
 
 :::message
@@ -26,7 +27,9 @@
 - Bedrock AgentCore の CDK 定義 (L1 Construct) と Lambda からの呼び出し方
 - S3 Vectors の概要と AwsCustomResource を使った CDK プロビジョニング
 - RAG パイプラインの実装 (Titan Embeddings V2 + S3 Vectors)
+- CodeCommit + CodePipeline + Amplify による完全自動化 CI/CD パイプライン
 - iPad/iOS 対応・レスポンシブ設計の考慮点
+- HTTP セキュリティヘッダー (`customHttp.yml`) による Amplify のエンタープライズ対応
 :::
 
 ---
@@ -201,7 +204,12 @@ try {
 
 iOS Chrome では Chime SDK + Amazon Transcribe による音声認識が動作しないケースがあります。そのため **Web Speech API** (`webkitSpeechRecognition`) をフォールバックとして追加しました。
 
+ミュート状態と連動させるため、`isMutedRef`（`useRef`）で同期的にミュート状態を管理し、**マイク ON のときだけ認識を開始**します。
+
 ```typescript
+// ミュート状態を useRef で同期追跡 (React state は async のためコールバック内で使えない)
+const isMutedRef = useRef(true);
+
 // Chime Transcription が機能しない環境 (iOS Chrome 等) 向けフォールバック
 const SpeechRecognitionClass =
   (window as any).webkitSpeechRecognition ?? (window as any).SpeechRecognition;
@@ -212,22 +220,74 @@ if (SpeechRecognitionClass) {
   recognition.interimResults = true;
   recognition.lang = 'ja-JP';
   recognition.onresult = (event) => {
+    if (isMutedRef.current) return;  // ミュート中は結果を無視
     let final = '';
     for (let i = event.resultIndex; i < event.results.length; i++) {
       if (event.results[i].isFinal) final += event.results[i][0].transcript;
     }
-    if (final.trim()) onTranscript(final.trim());
+    if (final.trim()) onTranscriptRef.current(final.trim());
   };
-  // 致命的エラー (マイク権限拒否など) で自動再起動を停止 → 無限ループ防止
+  // 致命的エラー (マイク権限拒否) で自動再起動を停止 → 無限ループ防止
   recognition.onerror = (event) => {
     if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
       speechRecognitionRef.current = null;
     }
   };
-  // continuous が保証されない実装への対応: onend で自動再起動
-  recognition.onend = () => { if (speechRecognitionRef.current) recognition.start(); };
-  recognition.start();
+  // ミュート中は再起動しない (continuous が保証されない iOS への対応)
+  recognition.onend = () => {
+    if (speechRecognitionRef.current && !isMutedRef.current) recognition.start();
+  };
+  speechRecognitionRef.current = recognition;
+  // デフォルトはミュートのため start() しない。マイク ON 時に toggleMute() で開始する
 }
+```
+
+:::message
+**stale closure に注意**
+
+`recognition.onresult` のコールバックは `startMeeting()` 実行時の関数インスタンスをキャプチャします。その後 React の state 更新（`sessionId` の確定など）で再レンダリングが起きても、クロージャは古い参照を指し続けます。
+
+これを防ぐため `onTranscriptRef` パターンを使います。**毎レンダリングで ref を最新の関数に更新**することで、コールバックが常に最新の `sendTranscript`（正しい `sessionId` を持つ）を呼び出せます。
+
+```typescript
+// useMeeting.ts
+const onTranscriptRef = useRef(onTranscript);
+onTranscriptRef.current = onTranscript;  // 毎レンダリングで更新
+
+const flushTranscript = useCallback(() => {
+  const text = transcriptBufferRef.current.trim();
+  if (text) {
+    transcriptBufferRef.current = '';
+    onTranscriptRef.current(text);  // 常に最新の関数を呼ぶ
+  }
+}, []);  // onTranscript は依存配列から外す
+```
+
+この問題が修正される前は、音声認識は動作していても `sessionId=null` の古い `sendTranscript` が呼ばれ、`if (!sessionId) return` で全て握りつぶされていました。
+:::
+
+`toggleMute` ではミュート解除と同時に音声認識を開始し、ミュートと同時に停止します。
+
+```typescript
+const toggleMute = useCallback(() => {
+  const session = sessionRef.current;
+  if (!session) return;
+  if (isMuted) {
+    session.audioVideo.realtimeUnmuteLocalAudio();
+    isMutedRef.current = false;
+    setIsMuted(false);
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.start(); } catch { /* 既に開始中 */ }
+    }
+  } else {
+    session.audioVideo.realtimeMuteLocalAudio();
+    isMutedRef.current = true;
+    setIsMuted(true);
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.stop(); } catch { /* 既に停止中 */ }
+    }
+  }
+}, [isMuted]);
 ```
 
 ### 画面共有の対応状況
@@ -672,6 +732,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     ).toString('base64');
 
     // 5. 利用記録を DynamoDB に非同期保存 (失敗しても本体処理を継続)
+    // ※ recordUsage は DynamoDBDocumentClient.send(new PutCommand({...})) を行うヘルパー関数
+    //   userId / sk(YYYYMMDD#uuid) / sessionId / userMessage / aiResponse / ragUsed / frameAnalyzed を保存
     recordUsage({ userId, sessionId, userMessage: text, aiResponse: aiText,
       ragUsed: ragContext.length > 0, frameAnalyzed: !!frame }).catch(console.error);
 
@@ -874,6 +936,115 @@ for i in $(seq 1 30); do
 done
 ```
 
+### CI/CD パイプライン: CodeCommit + CodePipeline + Amplify
+
+`deploy.sh` による手動デプロイは手軽ですが、本番運用では**コードの変更が自動でデプロイされる CI/CD パイプライン**が必要です。本システムでは以下の構成を採用しています。
+
+#### リポジトリ構成 (モノレポ)
+
+```
+chime-ai-meeting/  (CodeCommit リポジトリ)
+├── amplify.yml          # Amplify フロントエンドビルド設定
+├── buildspec-cdk.yml    # CodeBuild CDK デプロイ設定
+├── frontend/            # React アプリ
+└── cdk/                 # CDK インフラ定義
+```
+
+フロントエンドとインフラを単一の CodeCommit リポジトリで管理するモノレポ構成です。
+
+#### 自動トリガーの仕組み
+
+```
+git push → CodeCommit (main ブランチ)
+              │
+              ├─→ Amplify (自動ビルド)
+              │    amplify.yml に従い npm run build → デプロイ
+              │
+              └─→ EventBridge (CodeCommit 更新を検知)
+                   └─→ CodePipeline
+                        ├─ Source: CodeCommit からソース取得
+                        └─ Deploy: CodeBuild で npx cdk deploy
+```
+
+#### buildspec-cdk.yml
+
+```yaml
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+  pre_build:
+    commands:
+      - cd cdk
+      - npm ci
+  build:
+    commands:
+      - npx cdk deploy --all --require-approval never --ci
+```
+
+#### CDK での CodePipeline 定義
+
+CodePipeline は CDK でコード化できます。EventBridge ルールと組み合わせることで、CodeCommit への push を検知して自動実行します。
+
+```typescript
+// CodeBuild プロジェクト (CDK デプロイ用)
+const cdkBuildProject = new codebuild.Project(this, 'CdkBuildProject', {
+  projectName: 'chime-ai-cdk-deploy',
+  source: codebuild.Source.codePipeline(),
+  buildSpec: codebuild.BuildSpec.fromSourceFilename('buildspec-cdk.yml'),
+  environment: {
+    buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
+    computeType: codebuild.ComputeType.SMALL,
+    environmentVariables: {
+      CDK_DEFAULT_ACCOUNT: { value: this.account },
+      CDK_DEFAULT_REGION: { value: this.region },
+    },
+  },
+  role: cdkDeployRole,  // AdministratorAccess が必要
+});
+
+// CodePipeline (Source → Deploy)
+const pipeline = new codepipeline.Pipeline(this, 'CdkPipeline', {
+  pipelineName: 'chime-ai-cdk-pipeline',
+  artifactBucket: artifactBucket,
+  stages: [
+    {
+      stageName: 'Source',
+      actions: [new codepipeline_actions.CodeCommitSourceAction({
+        actionName: 'Source',
+        repository: codeCommitRepo,
+        branch: 'main',
+        output: sourceArtifact,
+        trigger: codepipeline_actions.CodeCommitTrigger.EVENTS,  // EventBridge 経由
+      })],
+    },
+    {
+      stageName: 'Deploy',
+      actions: [new codepipeline_actions.CodeBuildAction({
+        actionName: 'CDKDeploy',
+        project: cdkBuildProject,
+        input: sourceArtifact,
+      })],
+    },
+  ],
+});
+```
+
+:::message
+**Amplify + CodeCommit 接続時の注意**
+
+Amplify アプリに手動デプロイ（zip アップロード）したブランチが残っている状態で `aws amplify update-app --repository ...` を実行すると、
+
+```
+BadRequestException: Cannot connect your app to repository
+while manually deployed branch still exists.
+```
+
+というエラーになります。先に `aws amplify delete-branch` で手動デプロイのブランチを削除してからリポジトリ接続を行ってください。
+:::
+
 ---
 
 ## 8. フロントエンド (React + Vite)
@@ -964,6 +1135,111 @@ requestAnimationFrame(tick);
 | 9 | `autoPrepare` 忘れでエイリアス作成失敗 | AgentCore が PREPARED 状態になっていない | `autoPrepare: true` を必ず指定 |
 | 10 | Amplify zip が壊れる | `mktemp` + 相対パスの組み合わせ | 固定絶対パス + `cd "$FRONTEND_DIR/dist"` で確実に移動 |
 | 11 | `jp.*` 推論プロファイルで "Access denied" (stream 内) | Bedrock Agent ロールに `aws-marketplace:*` がない | Agent ロールに `ViewSubscriptions` / `Subscribe` を追加 |
+| 12 | 音声認識が全く動かない (認識はするが AI に届かない) | stale closure: `recognition.onresult` が古い `sendTranscript` (sessionId=null) をキャプチャ | `onTranscriptRef = useRef` パターンで常に最新の関数を参照 |
+| 13 | Amplify にリポジトリ接続できない | 手動デプロイブランチが残存している | `delete-branch` で手動ブランチを先に削除してから接続 |
+
+---
+
+## 10. フロントエンドセキュリティ: Amplify のエンタープライズ対応
+
+エンタープライズ用途で導入する際、バックエンド（API Gateway + Cognito）の保護に加え、フロントエンドをホストするインフラのセキュリティ要件も問われます。Amplify Hosting は直近のアップデートにより、これらの要件に対応できるようになっています。
+
+### HTTP セキュリティヘッダーの実装
+
+クリックジャッキング・XSS・MIME スニッフィングなどをブラウザ側で防ぐ HTTP セキュリティヘッダーは、リポジトリに `customHttp.yml` を配置するだけで Amplify に適用できます。
+
+```yaml
+# customHttp.yml (リポジトリルートに配置)
+customHeaders:
+  - pattern: '**/*'
+    headers:
+      # HTTPS 通信を 1 年間強制 (preload リスト登録も想定)
+      - key: 'Strict-Transport-Security'
+        value: 'max-age=31536000; includeSubDomains; preload'
+      # クリックジャッキング対策: iframe 埋め込みを全面禁止
+      - key: 'X-Frame-Options'
+        value: 'DENY'
+      # MIME スニッフィング対策
+      - key: 'X-Content-Type-Options'
+        value: 'nosniff'
+      # リファラー情報: オリジンのみ (クロスオリジン時はパスを非公開)
+      - key: 'Referrer-Policy'
+        value: 'strict-origin-when-cross-origin'
+      # Content Security Policy — ビデオ会議システムの要件を考慮
+      - key: 'Content-Security-Policy'
+        value: >-
+          default-src 'self';
+          connect-src 'self'
+            https://*.amazonaws.com
+            https://*.amazoncognito.com
+            wss://*.amazonaws.com;
+          media-src 'self' blob:;
+          style-src 'self' 'unsafe-inline';
+          script-src 'self' 'unsafe-inline';
+```
+
+:::message alert
+**CSP と Chime SDK の注意点**
+
+ビデオ会議システム特有の通信要件があります。CSP を厳格にしすぎると Chime SDK が動作しません。
+
+| 要件 | CSP ディレクティブ |
+|------|-----------------|
+| Chime SDK WebSocket (音声・映像) | `connect-src wss://*.chime.aws wss://*.amazonaws.com` |
+| Cognito 認証 | `connect-src https://*.amazoncognito.com` |
+| Polly 音声 (Base64 → Blob URL) | `media-src blob:` |
+| VoiceFocus WASM | `script-src 'wasm-unsafe-eval'` (必要な場合) |
+
+本番デプロイ前に [Mozilla Observatory](https://observatory.mozilla.org/) でスキャンし、A 以上を目標にチューニングしてください。
+:::
+
+### Amplify への WAF 統合
+
+以前の Amplify Hosting は WAF を直接アタッチできず、前段に自前 CloudFront を置くワークアラウンドが必要でした。現在は **Amplify ネイティブで WAF Web ACL をアタッチ**できます。
+
+```typescript
+// CDK: Amplify アプリに WAF をアタッチ
+import { aws_wafv2 as wafv2 } from 'aws-cdk-lib';
+
+const webAcl = new wafv2.CfnWebACL(this, 'AmplifyWebAcl', {
+  scope: 'CLOUDFRONT',  // Amplify は CloudFront ベース
+  defaultAction: { allow: {} },
+  rules: [
+    {
+      name: 'AWSManagedRulesCommonRuleSet',
+      priority: 1,
+      overrideAction: { none: {} },
+      statement: {
+        managedRuleGroupStatement: {
+          vendorName: 'AWS',
+          name: 'AWSManagedRulesCommonRuleSet',
+        },
+      },
+      visibilityConfig: {
+        cloudWatchMetricsEnabled: true,
+        metricName: 'CommonRuleSet',
+        sampledRequestsEnabled: true,
+      },
+    },
+  ],
+  visibilityConfig: {
+    cloudWatchMetricsEnabled: true,
+    metricName: 'AmplifyWaf',
+    sampledRequestsEnabled: true,
+  },
+});
+
+// Amplify アプリに Web ACL を関連付け
+const cfnApp = amplifyApp.node.defaultChild as amplify.CfnApp;
+cfnApp.addPropertyOverride('CustomRules', [...]);
+// WAF の関連付けは aws amplify update-app --waf-configuration で行う (2025年時点)
+```
+
+:::message
+**WAF は us-east-1 で作成する**
+
+Amplify の CloudFront ディストリビューションはグローバルなため、WAF Web ACL は必ず **us-east-1 (バージニア) リージョン**で作成する必要があります。東京リージョンで作成した Web ACL は Amplify に関連付けられません。
+:::
 
 ---
 
@@ -973,7 +1249,9 @@ Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2025 年時点で最
 
 特に Bedrock AgentCore は、従来の Converse API + DynamoDB による自前セッション管理と比べて Lambda の実装がシンプルになります。S3 Vectors も、ベクトル DB のインフラ管理が不要になる点で開発体験の改善に寄与します。
 
-ソースコードは本リポジトリで公開しています。`bash deploy.sh` 一コマンドで全インフラとフロントエンドを同時にデプロイできますので、ぜひお試しください。
+インフラ面では **CodeCommit + CodePipeline + Amplify によるモノレポ CI/CD** を整備し、`git push` 一発でフロントエンドとインフラが同時に自動デプロイされる体制を実現しています。セキュリティ面でも `customHttp.yml` による HTTP セキュリティヘッダーと Amplify ネイティブの WAF 統合により、PoC 品質からエンタープライズ本番品質へのギャップを埋めています。
+
+ソースコードは本リポジトリで公開しています。ぜひお試しください。
 
 ---
 
@@ -984,3 +1262,6 @@ Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2025 年時点で最
 - [Amazon S3 Vectors ドキュメント](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-vectors.html)
 - [Amazon Polly Neural TTS](https://docs.aws.amazon.com/polly/latest/dg/neural-voices.html)
 - [AWS CDK AwsCustomResource](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.custom_resources.AwsCustomResource.html)
+- [AWS CodePipeline + CodeCommit](https://docs.aws.amazon.com/codepipeline/latest/userguide/connections-codecommit.html)
+- [Amplify Hosting カスタム HTTP ヘッダー](https://docs.aws.amazon.com/amplify/latest/userguide/custom-headers.html)
+- [Mozilla Observatory (セキュリティスキャン)](https://observatory.mozilla.org/)

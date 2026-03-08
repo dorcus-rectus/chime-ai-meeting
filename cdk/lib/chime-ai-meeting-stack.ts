@@ -2,11 +2,13 @@ import * as cdk from 'aws-cdk-lib';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { aws_bedrock as bedrock } from 'aws-cdk-lib';
 import { aws_amplify as amplify } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
@@ -98,6 +100,28 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       partitionKey: { name: 'sessionId', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // -------------------------------------------------------
+    // SQS — ドキュメント取り込み非同期キュー
+    //
+    // API Gateway は 29 秒タイムアウトのため、大きなドキュメントの
+    // 埋め込み生成 (チャンク × ~1s) は同期処理できない。
+    // SQS + Worker Lambda で非同期処理し、タイムアウトを回避する。
+    // -------------------------------------------------------
+    const ingestDlq = new sqs.Queue(this, 'IngestDocumentDlq', {
+      queueName: 'chime-ai-ingest-document-dlq',
+      retentionPeriod: cdk.Duration.days(14), // 失敗メッセージを 2 週間保持
+    });
+
+    const ingestQueue = new sqs.Queue(this, 'IngestDocumentQueue', {
+      queueName: 'chime-ai-ingest-document',
+      // Worker Lambda のタイムアウト (300s) × 6 = 1800s
+      visibilityTimeout: cdk.Duration.seconds(1800),
+      deadLetterQueue: {
+        queue: ingestDlq,
+        maxReceiveCount: 3, // 3 回失敗後 DLQ へ
+      },
     });
 
     // -------------------------------------------------------
@@ -326,6 +350,28 @@ export class ChimeAiMeetingStack extends cdk.Stack {
             }),
           ],
         }),
+        // ドキュメント取り込み API Lambda: SQS への送信権限
+        SqsSendPolicy: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              actions: ['sqs:SendMessage'],
+              resources: [ingestQueue.queueArn],
+            }),
+          ],
+        }),
+        // ドキュメント取り込み Worker Lambda: SQS からの受信・削除権限
+        SqsReceivePolicy: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              actions: [
+                'sqs:ReceiveMessage',
+                'sqs:DeleteMessage',
+                'sqs:GetQueueAttributes',
+              ],
+              resources: [ingestQueue.queueArn],
+            }),
+          ],
+        }),
       },
     });
 
@@ -342,6 +388,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       VECTOR_BUCKET_NAME: vectorBucketName,
       VECTOR_INDEX_NAME: vectorIndexName,
       USER_POOL_ID: userPool.userPoolId,
+      INGEST_QUEUE_URL: ingestQueue.queueUrl,
     };
 
     const bundlingOptions: lambdaNodejs.BundlingOptions = {
@@ -387,9 +434,9 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------
-    // Lambda: ドキュメント取り込み (RAG インデックス構築)
-    // API Gateway の統合タイムアウトは 29 秒のハードリミットのため、
-    // Lambda タイムアウトを 28 秒に合わせる。埋め込み処理は並列化済み。
+    // Lambda: ドキュメント取り込み API (SQS へのエンキューのみ)
+    // 入力検証後 SQS に送信して 202 を返す軽量関数。
+    // 実際の埋め込み生成は ingest-document-worker が行う。
     // -------------------------------------------------------
     const ingestDocumentFn = new lambdaNodejs.NodejsFunction(this, 'IngestDocumentFunction', {
       functionName: 'chime-ai-ingest-document',
@@ -398,11 +445,39 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       handler: 'handler',
       role: lambdaRole,
       environment: commonEnv,
-      timeout: cdk.Duration.seconds(28),
+      timeout: cdk.Duration.seconds(10), // SQS 送信のみなので 10s で十分
+      memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_WEEK,
+      bundling: bundlingOptions,
+    });
+
+    // -------------------------------------------------------
+    // Lambda: ドキュメント取り込みワーカー (SQS トリガー)
+    //
+    // ingestDocumentFn がキューに入れたメッセージを受け取り、
+    // Titan Embeddings + S3 Vectors への書き込みを行う。
+    // タイムアウトを 300s に設定し大量チャンクも処理できるようにする。
+    // -------------------------------------------------------
+    const ingestDocumentWorkerFn = new lambdaNodejs.NodejsFunction(this, 'IngestDocumentWorkerFunction', {
+      functionName: 'chime-ai-ingest-document-worker',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, '../lambda/ingest-document-worker/index.ts'),
+      handler: 'handler',
+      role: lambdaRole,
+      environment: commonEnv,
+      timeout: cdk.Duration.seconds(300), // 大きなドキュメントでも完了できる余裕を確保
       memorySize: 512,
       logRetention: logs.RetentionDays.ONE_WEEK,
       bundling: bundlingOptions,
     });
+
+    // SQS トリガー: バッチサイズ 1 (各メッセージを独立して処理し、失敗を個別に DLQ に送る)
+    ingestDocumentWorkerFn.addEventSource(
+      new lambdaEventSources.SqsEventSource(ingestQueue, {
+        batchSize: 1,
+        reportBatchItemFailures: true, // 部分的な失敗対応 (SQSBatchResponse)
+      }),
+    );
 
     // -------------------------------------------------------
     // Lambda: ユーザー管理 (GET /users, DELETE /users)
@@ -591,6 +666,14 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'VectorBucketName', {
       value: vectorBucketName,
       description: 'S3 Vectors バケット名',
+    });
+    new cdk.CfnOutput(this, 'IngestQueueUrl', {
+      value: ingestQueue.queueUrl,
+      description: 'ドキュメント取り込み SQS キュー URL',
+    });
+    new cdk.CfnOutput(this, 'IngestDlqUrl', {
+      value: ingestDlq.queueUrl,
+      description: 'ドキュメント取り込み DLQ URL (失敗メッセージを確認するために使用)',
     });
   }
 }

@@ -88,7 +88,10 @@ export function DocumentUpload({ getIdToken }: Props) {
 
       setResult({
         type: 'success',
-        message: `✅ ${data.chunks} チャンク登録完了 — AI が参照できるようになりました`,
+        // 202: 非同期処理 (SQS キューイング済み) / 200: 同期完了 (旧フロー互換)
+        message: res.status === 202
+          ? `✅ 登録リクエストを受け付けました — 数秒後に AI が参照できるようになります`
+          : `✅ ${data.chunks ?? '?'} チャンク登録完了 — AI が参照できるようになりました`,
       });
       setContent('');
       setSource('');
