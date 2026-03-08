@@ -94,14 +94,18 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   const speechRecognitionRef = useRef<any>(null);
   // ミュート状態を同期的に参照するための ref (コールバック内での stale closure 回避)
   const isMutedRef = useRef(true);
+  // onTranscript を ref で保持: startMeeting 実行後の再レンダリングで sessionId が
+  // 更新されても、音声認識コールバックが常に最新の関数を参照できるようにする
+  const onTranscriptRef = useRef(onTranscript);
+  onTranscriptRef.current = onTranscript;
 
   const flushTranscript = useCallback(() => {
     const text = transcriptBufferRef.current.trim();
     if (text) {
       transcriptBufferRef.current = '';
-      onTranscript(text);
+      onTranscriptRef.current(text);
     }
-  }, [onTranscript]);
+  }, []);
 
   const handleTranscriptEvent = useCallback(
     (event: TranscriptEvent) => {
@@ -235,7 +239,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
             for (let i = event.resultIndex; i < event.results.length; i++) {
               if (event.results[i].isFinal) final += event.results[i][0].transcript;
             }
-            if (final.trim()) onTranscript(final.trim());
+            if (final.trim()) onTranscriptRef.current(final.trim());
           };
           // 致命的エラー時は自動再起動を停止 (not-allowed で無限ループ防止)
           recognition.onerror = (event: { error: string }) => {
