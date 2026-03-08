@@ -4,10 +4,16 @@ phases:
   install:
     runtime-versions:
       nodejs: 24
+    commands:
+      # CDK テスト + フロントエンドビルドに必要なツールを準備
+      - npm install -g aws-cdk
   pre_build:
     commands:
-      - cd cdk
-      - npm ci
+      # CDK Jest テスト (スナップショット・Fine-grained・cdk-nag)
+      - cd cdk && npm ci && npm test -- --passWithNoTests && cd ..
+      # フロントエンド依存関係インストール
+      - cd frontend && npm ci && cd ..
   build:
     commands:
-      - npx cdk deploy --all --require-approval never --ci
+      # CDK デプロイ + フロントエンドビルド + Amplify デプロイ を一括実行
+      - bash deploy.sh
