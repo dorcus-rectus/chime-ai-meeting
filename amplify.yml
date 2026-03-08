@@ -6,7 +6,8 @@ frontend:
         - cd frontend
         - npm ci
         # Playwright ブラウザをキャッシュディレクトリへインストール
-        - npx playwright install chromium --with-deps
+        # --with-deps は apt-get を使用するため Amazon Linux 環境では使用不可
+        - npx playwright install chromium
     build:
       commands:
         # ── 静的解析 ─────────────────────────────────────────────────────
