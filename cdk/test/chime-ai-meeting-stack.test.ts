@@ -16,7 +16,7 @@ Aspects.of(app).add(new AwsSolutionsChecks({ verbose: false }));
 NagSuppressions.addStackSuppressions(stack, [
   { id: 'AwsSolutions-IAM4', reason: 'テスト用抑制: AWSLambdaBasicExecutionRole は最小権限マネージドポリシー' },
   { id: 'AwsSolutions-IAM5', reason: 'テスト用抑制: Bedrock/Polly/Chime/S3Vectors はリソース ARN 指定不可' },
-  { id: 'AwsSolutions-L1', reason: 'テスト用抑制: CDK 内部 LogRetention Lambda はランタイムを制御できない' },
+  { id: 'AwsSolutions-L1', reason: 'テスト用抑制: CDK 内部カスタムリソース Lambda (AwsCustomResource 等) はランタイムを制御できない' },
   { id: 'AwsSolutions-SQS3', reason: 'テスト用抑制: DLQ 自体に DLQ は設定しない運用フロー' },
   { id: 'AwsSolutions-APIG2', reason: 'テスト用抑制: Lambda 内バリデーションで代替' },
   { id: 'AwsSolutions-APIG4', reason: 'テスト用抑制: Cognito Authorizer を全エンドポイントに適用済み' },
@@ -170,8 +170,8 @@ describe('SQS キュー', () => {
 // ================================================================
 describe('Lambda 関数', () => {
 
-  // NodejsFunction は内部で LogRetention 用のカスタムリソース Lambda も生成するため
-  // アプリケーション Lambda を runtime で絞って検査する
+  // logGroup を明示指定しているため LogRetention カスタムリソース Lambda は生成されない。
+  // NodejsFunction 以外 (SQS イベントソース等) が生成する Lambda を排除するため runtime で絞る。
   const countAppLambdas = (tmpl: Template) => {
     const resources = tmpl.findResources('AWS::Lambda::Function', {
       Properties: { Runtime: 'nodejs24.x' },

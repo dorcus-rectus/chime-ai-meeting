@@ -404,6 +404,11 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // -------------------------------------------------------
     // Lambda: 会議作成
     // -------------------------------------------------------
+    const createMeetingLogGroup = new logs.LogGroup(this, 'CreateMeetingLogGroup', {
+      logGroupName: '/aws/lambda/chime-ai-create-meeting',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const createMeetingFn = new lambdaNodejs.NodejsFunction(this, 'CreateMeetingFunction', {
       functionName: 'chime-ai-create-meeting',
       runtime: lambda.Runtime.NODEJS_24_X,
@@ -413,7 +418,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       environment: commonEnv,
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: createMeetingLogGroup,
       bundling: bundlingOptions,
     });
 
@@ -423,6 +428,11 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     //   Titan Embeddings (~1s) + AgentCore InvokeAgent (~10-30s) + Polly (~2s)
     //   のシーケンシャル処理を余裕を持って収める
     // -------------------------------------------------------
+    const aiChatLogGroup = new logs.LogGroup(this, 'AiChatLogGroup', {
+      logGroupName: '/aws/lambda/chime-ai-chat',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const aiChatFn = new lambdaNodejs.NodejsFunction(this, 'AiChatFunction', {
       functionName: 'chime-ai-chat',
       runtime: lambda.Runtime.NODEJS_24_X,
@@ -432,7 +442,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       environment: commonEnv,
       timeout: cdk.Duration.seconds(90),
       memorySize: 512,
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: aiChatLogGroup,
       bundling: bundlingOptions,
     });
 
@@ -441,6 +451,11 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // 入力検証後 SQS に送信して 202 を返す軽量関数。
     // 実際の埋め込み生成は ingest-document-worker が行う。
     // -------------------------------------------------------
+    const ingestDocumentLogGroup = new logs.LogGroup(this, 'IngestDocumentLogGroup', {
+      logGroupName: '/aws/lambda/chime-ai-ingest-document',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const ingestDocumentFn = new lambdaNodejs.NodejsFunction(this, 'IngestDocumentFunction', {
       functionName: 'chime-ai-ingest-document',
       runtime: lambda.Runtime.NODEJS_24_X,
@@ -450,7 +465,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       environment: commonEnv,
       timeout: cdk.Duration.seconds(10), // SQS 送信のみなので 10s で十分
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: ingestDocumentLogGroup,
       bundling: bundlingOptions,
     });
 
@@ -461,6 +476,11 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // Titan Embeddings + S3 Vectors への書き込みを行う。
     // タイムアウトを 300s に設定し大量チャンクも処理できるようにする。
     // -------------------------------------------------------
+    const ingestDocumentWorkerLogGroup = new logs.LogGroup(this, 'IngestDocumentWorkerLogGroup', {
+      logGroupName: '/aws/lambda/chime-ai-ingest-document-worker',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const ingestDocumentWorkerFn = new lambdaNodejs.NodejsFunction(this, 'IngestDocumentWorkerFunction', {
       functionName: 'chime-ai-ingest-document-worker',
       runtime: lambda.Runtime.NODEJS_24_X,
@@ -470,7 +490,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       environment: commonEnv,
       timeout: cdk.Duration.seconds(300), // 大きなドキュメントでも完了できる余裕を確保
       memorySize: 512,
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: ingestDocumentWorkerLogGroup,
       bundling: bundlingOptions,
     });
 
@@ -485,6 +505,11 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // -------------------------------------------------------
     // Lambda: ユーザー管理 (GET /users, DELETE /users)
     // -------------------------------------------------------
+    const userManagementLogGroup = new logs.LogGroup(this, 'UserManagementLogGroup', {
+      logGroupName: '/aws/lambda/chime-ai-user-management',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const userManagementFn = new lambdaNodejs.NodejsFunction(this, 'UserManagementFunction', {
       functionName: 'chime-ai-user-management',
       runtime: lambda.Runtime.NODEJS_24_X,
@@ -494,13 +519,18 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       environment: commonEnv,
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: userManagementLogGroup,
       bundling: bundlingOptions,
     });
 
     // -------------------------------------------------------
     // Lambda: ドキュメント管理 (GET /documents, DELETE /documents)
     // -------------------------------------------------------
+    const manageDocumentsLogGroup = new logs.LogGroup(this, 'ManageDocumentsLogGroup', {
+      logGroupName: '/aws/lambda/chime-ai-manage-documents',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
     const manageDocumentsFn = new lambdaNodejs.NodejsFunction(this, 'ManageDocumentsFunction', {
       functionName: 'chime-ai-manage-documents',
       runtime: lambda.Runtime.NODEJS_24_X,
@@ -510,7 +540,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       environment: commonEnv,
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup: manageDocumentsLogGroup,
       bundling: bundlingOptions,
     });
 

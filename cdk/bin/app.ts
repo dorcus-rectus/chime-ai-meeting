@@ -50,7 +50,7 @@ NagSuppressions.addStackSuppressions(stack, [
   {
     id: 'AwsSolutions-L1',
     reason:
-      'LogRetention カスタムリソース Lambda は CDK 内部実装であり、' +
+      'CDK 内部カスタムリソース Lambda (AwsCustomResource 等) は CDK 内部実装であり、' +
       'ランタイムバージョンをアプリコードで制御できない。',
   },
   {
