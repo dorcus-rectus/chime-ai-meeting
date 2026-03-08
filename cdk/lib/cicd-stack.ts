@@ -165,10 +165,12 @@ export class CicdStack extends cdk.Stack {
           build: {
             commands: [
               // CDK outputs から環境変数を取得
-              `API_URL=$(node -e "const o=require('./cdk/cdk-outputs.json');console.log(Object.values(o)[0].ApiUrl)")`,
-              `AMPLIFY_APP_ID=$(node -e "const o=require('./cdk/cdk-outputs.json');console.log(Object.values(o)[0].AmplifyAppId)")`,
-              `COGNITO_USER_POOL_ID=$(node -e "const o=require('./cdk/cdk-outputs.json');console.log(Object.values(o)[0].CognitoUserPoolId)")`,
-              `COGNITO_CLIENT_ID=$(node -e "const o=require('./cdk/cdk-outputs.json');console.log(Object.values(o)[0].CognitoClientId)")`,
+              // extraInputs の CdkOutputArtifact は $CODEBUILD_SRC_DIR_CdkOutputArtifact に展開される
+              `CDK_OUTPUTS="$CODEBUILD_SRC_DIR_CdkOutputArtifact/cdk/cdk-outputs.json"`,
+              `API_URL=$(node -e "const o=require(process.env.CDK_OUTPUTS);console.log(Object.values(o)[0].ApiUrl)")`,
+              `AMPLIFY_APP_ID=$(node -e "const o=require(process.env.CDK_OUTPUTS);console.log(Object.values(o)[0].AmplifyAppId)")`,
+              `COGNITO_USER_POOL_ID=$(node -e "const o=require(process.env.CDK_OUTPUTS);console.log(Object.values(o)[0].CognitoUserPoolId)")`,
+              `COGNITO_CLIENT_ID=$(node -e "const o=require(process.env.CDK_OUTPUTS);console.log(Object.values(o)[0].CognitoClientId)")`,
               // フロントエンドビルド
               'cd frontend',
               `VITE_API_URL="$API_URL" VITE_REGION="${REGION}" VITE_COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" npm run build`,
