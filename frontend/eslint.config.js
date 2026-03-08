@@ -5,8 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
-  // 対象外ディレクトリ
-  { ignores: ['dist', 'coverage', 'e2e', '*.config.{js,ts}'] },
+  // 対象外ディレクトリ・ファイル
+  // src/**/*.js は tsc が出力するコンパイル済みファイルで TypeScript ソースと二重管理になるため除外
+  { ignores: ['dist', 'coverage', 'e2e', '*.config.{js,ts}', 'src/**/*.js'] },
 
   // TypeScript + React ルール
   {

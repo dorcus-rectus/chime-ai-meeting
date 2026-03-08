@@ -22,6 +22,8 @@
 | AI 会話 (セッション管理付き) | Bedrock AgentCore + Claude Sonnet 4.6 |
 | 画面共有フレームの AI 解析 | Bedrock AgentCore Vision (マルチモーダル) |
 | RAG (独自ドキュメント参照) | Amazon S3 Vectors + Titan Embeddings V2 |
+| RAG ドキュメント管理 | Lambda manage-documents (一覧・削除) |
+| PDF / テキストファイル登録 | pdfjs-dist でブラウザ内テキスト抽出 |
 | AI 音声応答 | Amazon Polly Neural TTS (Kazuha) |
 | ユーザー認証・管理 | Amazon Cognito |
 | インフラのコード管理 | AWS CDK (TypeScript) |
@@ -35,10 +37,14 @@
 - Bedrock AgentCore の CDK 定義 (L1 Construct) と Lambda からの呼び出し方
 - S3 Vectors の概要と AwsCustomResource を使った CDK プロビジョニング
 - RAG パイプラインの実装 (Titan Embeddings V2 + S3 Vectors + SQS 非同期処理)
+- **RAG 管理機能**: S3 Vectors の ListVectors / DeleteVectors によるドキュメント管理 API
+- **PDF 対応**: pdfjs-dist によるブラウザ内 PDF テキスト抽出と Vitest でのモック方法
 - Cognito Admin API を使ったユーザー管理 (AdminGetUser / AdminDeleteUser)
 - 画面共有フレームの Canvas キャプチャと AgentCore Vision への送信
 - 無音検知 + 送信確認ダイアログによる音声認識 UX
 - AI アバターコンポーネント (動画 + CSS AR エフェクト)
+- **音声再生の race condition 対策** (AudioContext + playIdRef パターン)
+- **Chime Transcribe 重複テキスト** の正規化・重複排除実装
 - CodeCommit + CodePipeline + Amplify による完全自動化 CI/CD パイプライン
 - Vitest 単体テスト・Playwright E2E テスト・ESLint/Prettier によるコード品質管理
 - iPad/iOS 対応・レスポンシブ設計の考慮点
@@ -75,6 +81,9 @@
        │              ├─ テキストをチャンク分割 (スライディングウィンドウ)
        │              ├─ Titan Embeddings V2 でベクトル化 (並列 5 件)
        │              └─ S3 Vectors に PutVectors (25 件バッチ)
+       │
+       ├─ GET    /documents → Lambda: manage-documents → S3 Vectors (ListVectors)
+       ├─ DELETE /documents → Lambda: manage-documents → S3 Vectors (DeleteVectors)
        │
        ├─ GET  /users     → Lambda: user-management → Cognito AdminGetUser
        └─ DELETE /users   → Lambda: user-management → Cognito AdminDeleteUser
@@ -962,7 +971,219 @@ npm run build
 
 ---
 
-## 7. ユーザー管理
+## 7. RAG 管理: ドキュメント一覧・削除
+
+### manage-documents Lambda
+
+S3 Vectors に登録済みのドキュメントを一覧表示・削除するための Lambda です。`GET /documents` と `DELETE /documents` の 2 つのメソッドを 1 つの Lambda で処理します。
+
+```typescript
+// cdk/lambda/manage-documents/index.ts
+import {
+  S3VectorsClient,
+  ListVectorsCommand,
+  DeleteVectorsCommand,
+} from '@aws-sdk/client-s3vectors';
+
+// GET /documents — S3 Vectors を全ページ取得し userId フィルタ後に source でグループ化
+if (event.httpMethod === 'GET') {
+  const allVectors: VectorItem[] = [];
+  let nextToken: string | undefined;
+
+  // ListVectors はページネーション対応 — nextToken がなくなるまで繰り返す
+  do {
+    const result = await s3VectorsClient.send(
+      new ListVectorsCommand({
+        vectorBucketName: VECTOR_BUCKET_NAME,
+        indexName: VECTOR_INDEX_NAME,
+        returnMetadata: true,
+        maxResults: 100,
+        nextToken,
+      }),
+    );
+    const items = (result.vectors ?? []).filter(
+      (v) => (v.metadata as Record<string, string>)?.userId === userId,
+    );
+    allVectors.push(...items);
+    nextToken = result.nextToken;
+  } while (nextToken);
+
+  // source でグループ化してドキュメント単位に集約
+  const grouped = allVectors.reduce<Record<string, DocumentGroup>>((acc, v) => {
+    const meta = v.metadata as Record<string, string>;
+    const source = meta?.source ?? '不明';
+    if (!acc[source]) {
+      acc[source] = { source, count: 0, keys: [], createdAt: meta?.createdAt };
+    }
+    acc[source].count++;
+    acc[source].keys.push(v.key!);
+    return acc;
+  }, {});
+
+  return { statusCode: 200, body: JSON.stringify({ documents: Object.values(grouped) }) };
+}
+
+// DELETE /documents — source 指定またはキー配列で削除
+if (event.httpMethod === 'DELETE') {
+  const { source, keys: directKeys } = JSON.parse(event.body ?? '{}');
+
+  // source 指定の場合は対応キーを収集
+  let keysToDelete: string[] = directKeys ?? [];
+  if (source && keysToDelete.length === 0) {
+    const listed = await listAllVectors(userId);
+    keysToDelete = listed
+      .filter((v) => (v.metadata as Record<string, string>)?.source === source)
+      .map((v) => v.key!);
+  }
+
+  // 25 件ずつバッチ削除
+  for (let i = 0; i < keysToDelete.length; i += 25) {
+    await s3VectorsClient.send(
+      new DeleteVectorsCommand({
+        vectorBucketName: VECTOR_BUCKET_NAME,
+        indexName: VECTOR_INDEX_NAME,
+        keys: keysToDelete.slice(i, i + 25),
+      }),
+    );
+  }
+  return { statusCode: 200, body: JSON.stringify({ deleted: keysToDelete.length }) };
+}
+```
+
+**ポイント:**
+- ベクトルキーを `${userId}/${uuid}` 形式にすることで、ユーザーごとのスコープを実現
+- `source` メタデータで元のドキュメントを識別し、チャンク単位 → ドキュメント単位に集約
+- `ListVectorsCommand` はページネーション必須 — `nextToken` がなくなるまでループ
+
+### CDK: manage-documents の追加
+
+```typescript
+// S3VectorsPolicy に ListVectors と DeleteVectors を追加
+const s3VectorsPolicy = new iam.PolicyStatement({
+  actions: [
+    's3vectors:PutVectors',
+    's3vectors:QueryVectors',
+    's3vectors:ListVectors',   // manage-documents で追加
+    's3vectors:DeleteVectors', // manage-documents で追加
+  ],
+  resources: ['*'],
+});
+
+const manageDocumentsFn = new lambdaNodejs.NodejsFunction(this, 'ManageDocumentsFunction', {
+  functionName: 'chime-ai-manage-documents',
+  entry: 'lambda/manage-documents/index.ts',
+  timeout: cdk.Duration.seconds(60),
+  memorySize: 256,
+  environment: commonEnv,
+});
+manageDocumentsFn.addToRolePolicy(s3VectorsPolicy);
+
+// documentsResource に GET / DELETE メソッドを追加
+documentsResource.addMethod('GET',    new apigateway.LambdaIntegration(manageDocumentsFn), authMethodOptions);
+documentsResource.addMethod('DELETE', new apigateway.LambdaIntegration(manageDocumentsFn), authMethodOptions);
+```
+
+### RAGManagement コンポーネント
+
+```typescript
+// frontend/src/components/RAGManagement.tsx (抜粋)
+export function RAGManagement({ getIdToken, onBack }: Props) {
+  const [documents, setDocuments] = useState<DocumentGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDocuments = async () => {
+    const token = await getIdToken();
+    const res = await fetch(`${API_URL}/documents`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    setDocuments(data.documents);
+  };
+
+  const deleteDocument = async (source: string) => {
+    const token = await getIdToken();
+    await fetch(`${API_URL}/documents`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ source }),
+    });
+    await fetchDocuments(); // 一覧を再取得
+  };
+
+  // 削除確認ダイアログ → deleteDocument(source) で実行
+}
+```
+
+---
+
+## 7.5. PDF・テキストファイルの登録対応
+
+### ブラウザ内 PDF テキスト抽出 (pdfjs-dist)
+
+`DocumentUpload` コンポーネントはテキスト直接入力に加え、ファイルアップロードに対応しています。
+
+```typescript
+// frontend/src/components/DocumentUpload.tsx
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+// Vite の ?url サフィックスで Worker ファイルの URL を取得
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+
+async function extractPdfText(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const texts: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    texts.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' '));
+  }
+  return texts.join('\n');
+}
+
+// ファイル読み込みボタン: .txt .md .csv .log .pdf に対応
+<input
+  type="file"
+  accept=".txt,.md,.csv,.log,.pdf"
+  onChange={async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.name.endsWith('.pdf')) {
+      setIsExtracting(true);
+      const text = await extractPdfText(file);
+      setContent(text);
+      setIsExtracting(false);
+    } else {
+      const text = await file.text();
+      setContent(text);
+    }
+  }}
+/>
+```
+
+### Vitest でのモック方法
+
+`pdfjs-dist` は内部で `DOMMatrix` を参照しますが、Vitest の jsdom 環境には `DOMMatrix` が存在しないためインポートだけでクラッシュします。テストファイルの先頭で `vi.mock` を使います。
+
+```typescript
+// src/__tests__/components/DocumentUpload.test.tsx
+vi.mock('pdfjs-dist', () => ({
+  GlobalWorkerOptions: { workerSrc: '' },
+  getDocument: vi.fn(),
+}));
+vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '' }));
+```
+
+:::message alert
+**`vi.mock` はファイルの先頭 (import より前) に書く**
+
+Vitest (Vite) はビルド時に `vi.mock` 呼び出しをホイスト (巻き上げ) します。import より後に書いても機能しますが、他のモックと一貫性を保つため先頭に置くのが慣例です。
+:::
+
+---
+
+## 8. ユーザー管理
 
 ### Lambda: user-management
 
@@ -1750,6 +1971,13 @@ export default tseslint.config(
 | 16 | 画面共有 `<video>` が表示されない | `startScreenShare()` 呼び出し時点で `screenVideoRef.current` が null (条件付きレンダリングで未マウント) | `<video>` を常に描画して非共有時は `display: none` で隠す |
 | 17 | コンパイル済み `.js` が TypeScript を上書き | Vite のモジュール解決は `.js` を `.tsx` より優先するため、過去にコンパイルした `.js` が残るとそちらが読まれる | `git rm -f` で `src/` 内の `.js` を全削除し `.gitignore` に追加 |
 | 18 | Playwright テストで `getByLabelText` が失敗 | `<label>` に `htmlFor` / `<input>` に `id` が未設定 | `htmlFor`/`id` を全フォーム要素に追加して label-input を関連付け |
+| 19 | AI アバターが黒画面のまま | `<video autoPlay>` だけでは一部ブラウザで autoplay policy により再生されない | `useEffect` + `canplay` イベントで `video.play()` を明示的に呼び出す |
+| 20 | 何度かやり取り後に音声認識が止まる | `AudioBufferSourceNode.stop()` 後に `onended` が非同期 fire → 新しい再生の `isSpeaking` を false にする race condition | `stopSpeaking()` 内で先に `onended = null` をセット + `playIdRef` でキャンセルを検知 |
+| 21 | ダミーカメラの文字が左右反転 | `transform: 'scaleX(-1)'` を video 要素自体に適用していた (通常カメラ鏡像用) | wrapper div でカメラ種別ごとに分岐: `isDummyCamera ? 'none' : 'scaleX(-1)'` |
+| 22 | カメラを一度オフ→オンにしないと映らない | `videoTileDidUpdate` が `startLocalVideoTile()` の呼び出しと同期で fire、React が DOM をコミットする前に `localVideoRef.current` が null | `bind()` を即時実行後、null だった場合は `setTimeout(bind, 0)` でリトライ |
+| 23 | 無音ダイアログ中に同じ文字列が繰り返される | ダイアログ表示中も Chime Transcribe イベントが発火し続け `pendingText` に追記される | `showSilenceConfirmRef` フラグで `handleTranscriptEvent` を早期リターン |
+| 24 | 「続けて話す」後に AI が「考え中」のまま止まる | `confirmSend` で debounce タイマーをクリアせずに古いタイマーが発火 → 2 重送信になり `isProcessing=true` がクリアされない | `confirmSend`/`cancelSend` の先頭で `clearTimeout(debounceTimerRef.current)` を実行 |
+| 25 | Vitest で `DOMMatrix is not defined` | `pdfjs-dist` が jsdom 環境にない `DOMMatrix` を import 時に参照 | テストファイル先頭で `vi.mock('pdfjs-dist', ...)` と Worker URL をモック |
 
 ---
 

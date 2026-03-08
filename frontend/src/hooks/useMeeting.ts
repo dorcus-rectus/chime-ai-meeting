@@ -135,7 +135,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     if (!trimmed) return;
 
     // 重複防止: 句読点を除いて比較、かつ pendingText に既に含まれている場合もスキップ
-    const norm = (s: string) => s.replace(/[。、！？\.\?!,\s]/g, '');
+    const norm = (s: string) => s.replace(/[。、！？.?!,\s]/g, '');
     const now = Date.now();
     if (lastAccumulatedRef.current) {
       const { text: last, ts } = lastAccumulatedRef.current;

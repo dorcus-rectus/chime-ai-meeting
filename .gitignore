@@ -26,6 +26,9 @@ cdk/lambda/**/*.d.ts
 # ─── フロントエンド ─────────────────────────────────────────────────────────────
 frontend/dist/
 frontend/.vite/
+# tsc が出力する .js / .d.ts は TypeScript ソースと共存させない
+frontend/src/**/*.js
+frontend/src/**/*.d.ts
 
 # テストレポート・カバレッジ
 frontend/coverage/
