@@ -713,7 +713,12 @@ export class ChimeAiMeetingStack extends cdk.Stack {
         '      - key: Referrer-Policy',
         '        value: strict-origin-when-cross-origin',
         '      - key: Content-Security-Policy',
-        "        value: \"default-src 'self'; connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com https://*.chime.aws wss://*.amazonaws.com wss://*.chime.aws; worker-src blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';\"",
+        // connect-src の補足:
+        //   https://*.chime.aws       → 1階層サブドメイン (meetings.chime.aws 等)
+        //   https://*.sdkassets.chime.aws → static.sdkassets.chime.aws (SDK ワーカー取得)
+        //   https://data.svc.an1.ingest.chime.aws → Chime テレメトリ (4階層のため完全一致)
+        //   worker-src blob:          → AudioRedWorker が blob: URL で作成される
+        "        value: \"default-src 'self'; connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com https://*.chime.aws https://*.sdkassets.chime.aws https://data.svc.an1.ingest.chime.aws wss://*.amazonaws.com wss://*.chime.aws; worker-src blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';\"",
       ].join('\n'),
     });
 

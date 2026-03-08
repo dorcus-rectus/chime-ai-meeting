@@ -124,7 +124,15 @@ cd "$FRONTEND_DIR"
 echo "  zip サイズ: $(du -sh "$DIST_ZIP" | cut -f1)"
 
 # -------------------------------------------------------
-# 4. Amplify へデプロイ (手動デプロイ API)
+# 4. Amplify へデプロイ
+#
+# git リポジトリ接続済みアプリ: create-deployment は使用不可
+# (BadRequestException: Operation not supported. App is already connected a repository)
+# → start-job --job-type RELEASE で Amplify 自身にビルドさせる。
+#   Amplify ブランチ環境変数 (VITE_*) は CDK でセット済みのため
+#   Amplify ビルド時に自動参照される。
+#
+# git 非接続アプリ: create-deployment + zip upload の手動デプロイを使用。
 # -------------------------------------------------------
 echo ""
 echo "[5/5] Amplify へデプロイ中..."
@@ -145,32 +153,51 @@ if [ -n "$RUNNING_JOB" ] && [ "$RUNNING_JOB" != "None" ]; then
     --app-id "$AMPLIFY_APP_ID" \
     --branch-name main \
     --job-id "$RUNNING_JOB" \
-    --region "$REGION" > /dev/null
+    --region "$REGION" > /dev/null 2>&1 || true
   sleep 3
 fi
 
-# Amplify デプロイ作成
-DEPLOY_RESPONSE=$(aws amplify create-deployment \
+# アプリが git リポジトリに接続されているか確認
+REPO_URL=$(aws amplify get-app \
   --app-id "$AMPLIFY_APP_ID" \
-  --branch-name main \
   --region "$REGION" \
-  --output json)
+  --query 'app.repository' \
+  --output text 2>/dev/null || echo "None")
 
-JOB_ID=$(echo "$DEPLOY_RESPONSE" | node -e \
-  "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).jobId));")
-UPLOAD_URL=$(echo "$DEPLOY_RESPONSE" | node -e \
-  "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).zipUploadUrl));")
-
-echo "  zip をアップロード中 (job: $JOB_ID)..."
-curl -s -H "Content-Type: application/zip" --upload-file "$DIST_ZIP" "$UPLOAD_URL"
-rm -f "$DIST_ZIP"
-
-# デプロイ開始
-aws amplify start-deployment \
-  --app-id "$AMPLIFY_APP_ID" \
-  --branch-name main \
-  --job-id "$JOB_ID" \
-  --region "$REGION" > /dev/null
+if [ -n "$REPO_URL" ] && [ "$REPO_URL" != "None" ]; then
+  # --- git 接続済み: start-job で Amplify 自身にビルドさせる ---
+  echo "  git 接続済みアプリ: Amplify ビルドをトリガー中 (repo: $REPO_URL)..."
+  rm -f "$DIST_ZIP"
+  JOB_RESPONSE=$(aws amplify start-job \
+    --app-id "$AMPLIFY_APP_ID" \
+    --branch-name main \
+    --job-type RELEASE \
+    --region "$REGION" \
+    --output json)
+  JOB_ID=$(echo "$JOB_RESPONSE" | node -e \
+    "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).jobSummary.jobId));")
+  echo "  Amplify ビルド開始 (job: $JOB_ID)"
+else
+  # --- git 非接続: zip アップロードによる手動デプロイ ---
+  echo "  手動デプロイ: zip をアップロード中..."
+  DEPLOY_RESPONSE=$(aws amplify create-deployment \
+    --app-id "$AMPLIFY_APP_ID" \
+    --branch-name main \
+    --region "$REGION" \
+    --output json)
+  JOB_ID=$(echo "$DEPLOY_RESPONSE" | node -e \
+    "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).jobId));")
+  UPLOAD_URL=$(echo "$DEPLOY_RESPONSE" | node -e \
+    "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).zipUploadUrl));")
+  echo "  zip をアップロード中 (job: $JOB_ID)..."
+  curl -s -H "Content-Type: application/zip" --upload-file "$DIST_ZIP" "$UPLOAD_URL"
+  rm -f "$DIST_ZIP"
+  aws amplify start-deployment \
+    --app-id "$AMPLIFY_APP_ID" \
+    --branch-name main \
+    --job-id "$JOB_ID" \
+    --region "$REGION" > /dev/null
+fi
 
 # デプロイ完了まで待機 (最大 5 分 = 30回 × 10秒)
 echo "  Amplify デプロイ完了を待機中..."
