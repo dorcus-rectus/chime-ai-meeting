@@ -26,9 +26,9 @@
 | PDF / テキストファイル登録 | pdfjs-dist でブラウザ内テキスト抽出 |
 | AI 音声応答 | Amazon Polly Neural TTS (Kazuha) |
 | ユーザー認証・管理 | Amazon Cognito |
-| インフラのコード管理 | AWS CDK (TypeScript) |
+| インフラのコード管理 | AWS CDK (TypeScript) + Jest (スナップショット・Fine-grained・cdk-nag) |
 | CI/CD パイプライン | AWS CodeCommit + CodePipeline + Amplify |
-| テスト | Vitest (単体) + Playwright (E2E) + ESLint + Prettier |
+| テスト | Vitest (単体) + Playwright (E2E) + CDK Jest + ESLint + Prettier |
 | フロントエンド | React 19 + Vite 7 + Amplify Hosting |
 
 :::message
@@ -46,7 +46,7 @@
 - **音声再生の race condition 対策** (AudioContext + playIdRef パターン)
 - **Chime Transcribe 重複テキスト** の正規化・重複排除実装
 - CodeCommit + CodePipeline + Amplify による完全自動化 CI/CD パイプライン
-- Vitest 単体テスト・Playwright E2E テスト・ESLint/Prettier によるコード品質管理
+- Vitest 単体テスト・Playwright E2E テスト・CDK Jest (スナップショット・cdk-nag)・ESLint/Prettier によるコード品質管理
 - iPad/iOS 対応・レスポンシブ設計の考慮点
 - HTTP セキュリティヘッダー (`customHttp.yml`) による Amplify のエンタープライズ対応
 :::
@@ -1412,6 +1412,9 @@ phases:
       - npm ci
   build:
     commands:
+      # ── CDK Jest テスト (スナップショット・Fine-grained・cdk-nag) ──
+      - npm test -- --passWithNoTests
+      # ── インフラデプロイ ───────────────────────────────────────────
       - npx cdk deploy --all --require-approval never --ci
 ```
 
@@ -1784,9 +1787,9 @@ expect((video as HTMLVideoElement)?.muted).toBe(true);
 
 ---
 
-## 12. テスト戦略: Vitest + Playwright MCP
+## 12. テスト戦略: CDK Jest + Vitest + Playwright
 
-CI/CD パイプラインの品質ゲートとして、単体テスト・E2E テスト・静的解析を整備しました。
+CI/CD パイプラインの品質ゲートとして、CDK インフラテスト・フロントエンド単体テスト・E2E テスト・静的解析を整備しました。
 
 ### 単体テスト (Vitest + Testing Library)
 
