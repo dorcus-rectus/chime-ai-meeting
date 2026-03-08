@@ -172,7 +172,7 @@ describe('Lambda 関数', () => {
 
   // NodejsFunction は内部で LogRetention 用のカスタムリソース Lambda も生成するため
   // アプリケーション Lambda を runtime で絞って検査する
-  const countAppLambdas = (tmpl: Template): number => {
+  const countAppLambdas = (tmpl: Template) => {
     const resources = tmpl.findResources('AWS::Lambda::Function', {
       Properties: { Runtime: 'nodejs24.x' },
     });
