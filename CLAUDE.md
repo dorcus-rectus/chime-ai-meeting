@@ -196,7 +196,7 @@ App (認証ゲート + 画面遷移 view state)
 ### 主要フック
 
 - `useAuth`: signIn/signOut/signUp/confirmSignUp/deleteAccount/getIdToken
-- `useMeeting`: Chime SDK セッション + 無音検知ダイアログ (3秒 debounce)
+- `useMeeting`: Chime SDK セッション + 無音検知ダイアログ (3秒 debounce) + ミュート時に pendingText があれば即時ダイアログ表示 + `captureLocalFrame` (ローカルカメラフレームキャプチャ)
 - `useAIConversation`: AI 会話送受信 + Polly 音声再生 (AudioContext + playIdRef race condition 対策)
 - `useScreenShare`: getDisplayMedia + captureFrame (Canvas JPEG Base64)
 
@@ -207,6 +207,25 @@ App (認証ゲート + 画面遷移 view state)
 - `authenticated + view='profile'` → UserProfile
 - `authenticated + view='rag'` → RAGManagement
 - `authenticated + view='meeting'` → MeetingRoom
+
+### MeetingRoom — カメラ映像送信のキーワード検知
+
+`MeetingRoom.tsx` にはカメラ映像をいつ AI に送るかを判定する `shouldCaptureCamera(text)` ヘルパー関数があります。以前の手動 📸 ボタン (`isCameraAI` state) は廃止し、ユーザー発話にカメラ関連キーワードが含まれた場合のみ自動的にローカルカメラのフレームを送信します。
+
+```typescript
+function shouldCaptureCamera(text: string): boolean {
+  const patterns = [/カメラ/, /映像/, /顔.*見/, /どう見え/, /私.*映/, /映.*見て/];
+  return patterns.some((p) => p.test(text));
+}
+
+// onTranscript コールバック内:
+const frame = isSharing
+  ? captureFrame()                                         // 画面共有優先
+  : shouldCaptureCamera(transcript) ? captureLocalFrame() // キーワード検知時のみカメラ
+  : null;
+```
+
+`captureLocalFrame()` は `useMeeting` が返す関数で、ダミーカメラ (`isDummyCamera`) または映像オフ時は `null` を返します。
 
 ### DocumentUpload — PDF / テキストファイル対応
 
@@ -275,9 +294,12 @@ git push codecommit::ap-northeast-1://AdministratorAccess-015158432087@chime-ai-
 - **Polly Kazuha**: 日本語 Neural 音声。男性音声に変えたい場合は `VoiceId` を `Takumi` に変更
 - **アカウント削除後のセッション**: `AdminDeleteUser` はサーバー側のみ削除。フロントエンドで明示的に `signOut()` を呼ぶこと
 - **画面共有 `<video>` DOM**: `screenVideoRef` が null にならないよう `display: none` で常に DOM に存在させる
+- **ダミーカメラの transform**: Chime SDK は `bindVideoElement` で `rotateY(180deg)` を video 要素自体に設定する。wrapper div で `isDummyCamera ? 'scaleX(-1)' : 'none'` とすることでダミー時は鏡像をキャンセル、通常カメラ時はセルフィービューを維持する
+- **aibot.mp4 は Fast Start (moov front) 形式必須**: `moov` ボックスがファイル末尾にある通常 MP4 は `networkState: 3 (NETWORK_NO_SOURCE)` になりブラウザが再生できない。`qt-faststart` 等のツールで `moov` をファイル先頭に移動すること
+- **AI アバター autoPlay**: `<video autoPlay>` だけでは一部ブラウザで再生されない。`useEffect` で `video.play()` を呼び出し + `canplay` イベントでリトライすること。`display: 'block'` と `preload="auto"` も設定すること
+- **ミュート時の即時ダイアログ**: `toggleMute` でミュートにする際、`pendingTextRef.current.trim()` が空でなければ debounce を待たずに `showSilenceConfirm = true` を即時セットしてダイアログ表示する
 - **jsdom v28**: inline style の色が `rgb()` に正規化される。テストで `style*="ef4444"` ではなく `style*="rgba(239, 68, 68"` を使う
 - **React 19 muted prop**: React 19 では `<video muted>` が HTML 属性として正しく出力されるため ref コールバックは不要
-- **AI アバター autoPlay**: `<video autoPlay>` だけでは一部ブラウザで再生されない。`useEffect` + `canplay` イベントで `video.play()` を明示呼び出しすること
 - **AudioContext race condition**: `AudioBufferSourceNode.stop()` は `onended` を非同期で fire する。`stopSpeaking()` 前に `onended = null` をセットし、`playIdRef` でキャンセル検知すること
 - **Chime Transcribe 重複テキスト**: `lastAccumulatedRef` で 3 秒以内の同一テキストを重複排除。句読点 (`。、！？`) を正規化してから比較すること
 - **videoTileDidUpdate のタイミング**: `startLocalVideoTile()` は同期的に observer を fire するため、React がまだ DOM をコミットしていない。`setTimeout(bind, 0)` でリトライすること

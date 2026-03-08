@@ -32,8 +32,10 @@ customHeaders:
         value: 'strict-origin-when-cross-origin'
       # Content Security Policy
       # Chime SDK の要件:
-      #   - connect-src: WebSocket (wss://) で音声・映像転送
+      #   - connect-src https://*.chime.aws: worker-v1.js / ingest エンドポイント (HTTPS)
+      #   - connect-src wss://*.chime.aws: WebSocket 音声・映像転送
+      #   - worker-src blob:: Chime SDK が Blob URL から Web Worker を生成
       #   - media-src blob:: Polly 音声を Blob URL で再生
       #   - script-src 'unsafe-inline': Vite バンドル (インライン不使用時は削除可)
       - key: 'Content-Security-Policy'
-        value: "default-src 'self'; connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com wss://*.amazonaws.com wss://*.chime.aws; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';"
+        value: "default-src 'self'; connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com https://*.chime.aws wss://*.amazonaws.com wss://*.chime.aws; worker-src blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';"
