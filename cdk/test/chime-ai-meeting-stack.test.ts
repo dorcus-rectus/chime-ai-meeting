@@ -23,6 +23,9 @@ NagSuppressions.addStackSuppressions(stack, [
   { id: 'AwsSolutions-COG4', reason: 'テスト用抑制: 同上' },
   { id: 'AwsSolutions-COG3', reason: 'テスト用抑制: AdvancedSecurityMode は追加料金のため要件外' },
   { id: 'AwsSolutions-COG7', reason: 'テスト用抑制: MFA は要件外' },
+  { id: 'AwsSolutions-COG2', reason: 'テスト用抑制: MFA は要件外 (COG7 と同様)' },
+  { id: 'AwsSolutions-DDB3', reason: 'テスト用抑制: 開発環境では PITR 不要' },
+  { id: 'AwsSolutions-APIG3', reason: 'テスト用抑制: 小規模プロジェクトにつき WAF 適用なし' },
 ]);
 
 const template = Template.fromStack(stack);

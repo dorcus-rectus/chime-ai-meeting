@@ -86,6 +86,24 @@ NagSuppressions.addStackSuppressions(stack, [
       'MFA は今回のシステム要件に含まれないが、本番運用では有効化を推奨。' +
       '(Cognito の MFA 設定は userPool に mfa: cognito.Mfa.REQUIRED を追加することで対応可能)',
   },
+  {
+    id: 'AwsSolutions-COG2',
+    reason:
+      'MFA は今回のシステム要件に含まれない (COG7 と同様の理由)。' +
+      '本番運用では MFA 有効化を推奨。',
+  },
+  {
+    id: 'AwsSolutions-DDB3',
+    reason:
+      'Point-in-time Recovery は開発・検証環境では不要。' +
+      '本番環境では pointInTimeRecovery: true の有効化を推奨。',
+  },
+  {
+    id: 'AwsSolutions-APIG3',
+    reason:
+      'WAFv2 は小規模プロジェクトにおいてコストが見合わないと判断。' +
+      '本番環境では API Gateway に WAFv2 WebACL の関連付けを推奨。',
+  },
 ]);
 
 // -------------------------------------------------------

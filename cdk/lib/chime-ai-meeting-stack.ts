@@ -29,6 +29,8 @@ export class ChimeAiMeetingStack extends cdk.Stack {
         physicalResourceId: cr.PhysicalResourceId.of('ChimeTranscriptionServiceLinkedRole'),
         ignoreErrorCodesMatching: 'InvalidInput',
       },
+      // IAM は Lambda 組み込み SDK に含まれるため最新版インストール不要
+      installLatestAwsSdk: false,
       policy: cr.AwsCustomResourcePolicy.fromStatements([
         new iam.PolicyStatement({
           actions: ['iam:CreateServiceLinkedRole'],
@@ -147,6 +149,8 @@ export class ChimeAiMeetingStack extends cdk.Stack {
         action: 'DeleteVectorBucket',
         parameters: { vectorBucketName: vectorBucketName },
       },
+      // S3Vectors は新しい API のため Lambda 組み込み SDK に含まれない可能性があり最新版が必要
+      installLatestAwsSdk: true,
       policy: cr.AwsCustomResourcePolicy.fromStatements([
         new iam.PolicyStatement({
           actions: ['s3vectors:CreateVectorBucket', 's3vectors:DeleteVectorBucket'],
@@ -174,6 +178,8 @@ export class ChimeAiMeetingStack extends cdk.Stack {
         action: 'DeleteIndex',
         parameters: { vectorBucketName: vectorBucketName, indexName: vectorIndexName },
       },
+      // S3Vectors は新しい API のため Lambda 組み込み SDK に含まれない可能性があり最新版が必要
+      installLatestAwsSdk: true,
       policy: cr.AwsCustomResourcePolicy.fromStatements([
         new iam.PolicyStatement({
           actions: ['s3vectors:CreateIndex', 's3vectors:DeleteIndex'],
@@ -405,7 +411,6 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // Lambda: 会議作成
     // -------------------------------------------------------
     const createMeetingLogGroup = new logs.LogGroup(this, 'CreateMeetingLogGroup', {
-      logGroupName: '/aws/lambda/chime-ai-create-meeting',
       retention: logs.RetentionDays.ONE_WEEK,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -429,7 +434,6 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     //   のシーケンシャル処理を余裕を持って収める
     // -------------------------------------------------------
     const aiChatLogGroup = new logs.LogGroup(this, 'AiChatLogGroup', {
-      logGroupName: '/aws/lambda/chime-ai-chat',
       retention: logs.RetentionDays.ONE_WEEK,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -452,7 +456,6 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // 実際の埋め込み生成は ingest-document-worker が行う。
     // -------------------------------------------------------
     const ingestDocumentLogGroup = new logs.LogGroup(this, 'IngestDocumentLogGroup', {
-      logGroupName: '/aws/lambda/chime-ai-ingest-document',
       retention: logs.RetentionDays.ONE_WEEK,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -477,7 +480,6 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // タイムアウトを 300s に設定し大量チャンクも処理できるようにする。
     // -------------------------------------------------------
     const ingestDocumentWorkerLogGroup = new logs.LogGroup(this, 'IngestDocumentWorkerLogGroup', {
-      logGroupName: '/aws/lambda/chime-ai-ingest-document-worker',
       retention: logs.RetentionDays.ONE_WEEK,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -506,7 +508,6 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // Lambda: ユーザー管理 (GET /users, DELETE /users)
     // -------------------------------------------------------
     const userManagementLogGroup = new logs.LogGroup(this, 'UserManagementLogGroup', {
-      logGroupName: '/aws/lambda/chime-ai-user-management',
       retention: logs.RetentionDays.ONE_WEEK,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -527,7 +528,6 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // Lambda: ドキュメント管理 (GET /documents, DELETE /documents)
     // -------------------------------------------------------
     const manageDocumentsLogGroup = new logs.LogGroup(this, 'ManageDocumentsLogGroup', {
-      logGroupName: '/aws/lambda/chime-ai-manage-documents',
       retention: logs.RetentionDays.ONE_WEEK,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });

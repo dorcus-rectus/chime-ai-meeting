@@ -50,6 +50,21 @@ exports[`スナップショット CloudFormation テンプレートがスナッ�
           "is_reason_encoded": true,
           "reason": "44OG44K544OI55So5oqR5Yi2OiBNRkEg44Gv6KaB5Lu25aSW",
         },
+        {
+          "id": "AwsSolutions-COG2",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBNRkEg44Gv6KaB5Lu25aSWIChDT0c3IOOBqOWQjOanmCk=",
+        },
+        {
+          "id": "AwsSolutions-DDB3",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiDplovnmbrnkrDlooPjgafjga8gUElUUiDkuI3opoE=",
+        },
+        {
+          "id": "AwsSolutions-APIG3",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiDlsI/opo/mqKHjg5fjg63jgrjjgqfjgq/jg4jjgavjgaTjgY0gV0FGIOmBqeeUqOOBquOBlw==",
+        },
       ],
     },
   },
@@ -323,7 +338,6 @@ exports[`スナップショット CloudFormation テンプレートがスナッ�
     "AiChatLogGroup336A9C95": {
       "DeletionPolicy": "Delete",
       "Properties": {
-        "LogGroupName": "/aws/lambda/chime-ai-chat",
         "RetentionInDays": 7,
       },
       "Type": "AWS::Logs::LogGroup",
@@ -1747,7 +1761,7 @@ frontend:
       ],
       "Properties": {
         "Create": "{"service":"IAM","action":"createServiceLinkedRole","parameters":{"AWSServiceName":"transcription.chime.amazonaws.com"},"physicalResourceId":{"id":"ChimeTranscriptionServiceLinkedRole"},"ignoreErrorCodesMatching":"InvalidInput"}",
-        "InstallLatestAwsSdk": true,
+        "InstallLatestAwsSdk": false,
         "ServiceToken": {
           "Fn::GetAtt": [
             "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
@@ -1896,7 +1910,6 @@ frontend:
     "CreateMeetingLogGroupC546E814": {
       "DeletionPolicy": "Delete",
       "Properties": {
-        "LogGroupName": "/aws/lambda/chime-ai-create-meeting",
         "RetentionInDays": 7,
       },
       "Type": "AWS::Logs::LogGroup",
@@ -2008,7 +2021,6 @@ frontend:
     "IngestDocumentLogGroupD2F72A3C": {
       "DeletionPolicy": "Delete",
       "Properties": {
-        "LogGroupName": "/aws/lambda/chime-ai-ingest-document",
         "RetentionInDays": 7,
       },
       "Type": "AWS::Logs::LogGroup",
@@ -2147,7 +2159,6 @@ frontend:
     "IngestDocumentWorkerLogGroupF7758CC6": {
       "DeletionPolicy": "Delete",
       "Properties": {
-        "LogGroupName": "/aws/lambda/chime-ai-ingest-document-worker",
         "RetentionInDays": 7,
       },
       "Type": "AWS::Logs::LogGroup",
@@ -2475,7 +2486,6 @@ frontend:
     "ManageDocumentsLogGroupAC62CD73": {
       "DeletionPolicy": "Delete",
       "Properties": {
-        "LogGroupName": "/aws/lambda/chime-ai-manage-documents",
         "RetentionInDays": 7,
       },
       "Type": "AWS::Logs::LogGroup",
@@ -2682,7 +2692,6 @@ frontend:
     "UserManagementLogGroup944F5D37": {
       "DeletionPolicy": "Delete",
       "Properties": {
-        "LogGroupName": "/aws/lambda/chime-ai-user-management",
         "RetentionInDays": 7,
       },
       "Type": "AWS::Logs::LogGroup",
