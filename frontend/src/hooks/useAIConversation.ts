@@ -17,7 +17,6 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
   // iOS/Android 対応: AudioContext で完全メモリ再生
   // new Audio().play() は iOS では非ユーザージェスチャー時に失敗する
   // AudioContext は一度ユーザージェスチャーでアンロックすれば以降は自由に使える
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 

@@ -16,6 +16,15 @@ export function useScreenShare(): UseScreenShareReturn {
   const streamRef = useRef<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
 
+  // stopScreenShare を先に定義して startScreenShare から参照できるようにする
+  const stopScreenShare = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
+    setIsSharing(false);
+    setError(null);
+  }, []);
+
   const startScreenShare = useCallback(async (): Promise<MediaStream | null> => {
     setError(null);
     // iOS Chrome/Firefox は getDisplayMedia 非対応
@@ -56,15 +65,7 @@ export function useScreenShare(): UseScreenShareReturn {
       }
       return null;
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const stopScreenShare = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
-    setIsSharing(false);
-    setError(null);
-  }, []);
+  }, [stopScreenShare]);
 
   /**
    * 現在の画面フレームを JPEG (Base64) としてキャプチャする。

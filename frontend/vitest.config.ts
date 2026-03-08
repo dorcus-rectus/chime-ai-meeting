@@ -8,6 +8,7 @@ export default mergeConfig(
     test: {
       globals: true,
       environment: 'jsdom',
+      typecheck: { tsconfig: './tsconfig.test.json' },
       setupFiles: ['./src/__tests__/setup.ts'],
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       exclude: ['node_modules', 'dist', 'e2e'],

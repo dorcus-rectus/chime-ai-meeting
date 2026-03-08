@@ -53,7 +53,7 @@ export function AIParticipant({ isSpeaking, isProcessing, aiText }: AIParticipan
     >
       <style>{arStyles}</style>
 
-      {/* AI アバター映像 */}
+      {/* AI アバター映像 — React 19 では muted が HTML 属性として正しく出力される */}
       <video
         src="/aibot.mp4"
         autoPlay

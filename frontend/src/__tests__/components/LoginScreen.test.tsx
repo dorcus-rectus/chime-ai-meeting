@@ -68,10 +68,15 @@ describe('LoginScreen', () => {
 
     await waitFor(() => {
       // エラーボックス内の「8文字以上」メッセージを確認 (ラベルとの重複を避けるため getAllByText)
+      // jsdom v28 はインラインスタイルの色を rgb() に正規化するため color 値ではなく
+      // エラーボックス固有の background-color (rgba(239, 68, 68, ...)) で判定する
       const matches = screen.getAllByText(/8文字以上/);
       expect(matches.length).toBeGreaterThanOrEqual(1);
-      // 少なくとも1つはエラーボックス内のテキスト
-      const errorMsg = matches.find((el) => el.closest('[style*="ef4444"]'));
+      const errorMsg = matches.find(
+        (el) =>
+          el.closest('[style*="rgba(239, 68, 68"]') ||
+          el.closest('[style*="ef4444"]'),
+      );
       expect(errorMsg).toBeTruthy();
     });
   });

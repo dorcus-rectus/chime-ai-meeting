@@ -201,6 +201,29 @@ if [ "$JOB_STATUS" != "SUCCEED" ]; then
   echo "     コンソールで確認してください:"
   echo "     https://ap-northeast-1.console.aws.amazon.com/amplify/apps/$AMPLIFY_APP_ID"
 else
+  # -------------------------------------------------------
+  # 5. CloudFront キャッシュ無効化 (古い JS/CSS を確実に削除)
+  # -------------------------------------------------------
+  echo ""
+  echo "  CloudFront キャッシュを無効化中..."
+  # Amplify のドメインに紐づく CloudFront Distribution ID を取得 (us-east-1 で検索)
+  CF_DIST_ID=$(aws cloudfront list-distributions \
+    --query "DistributionList.Items[?contains(Origins.Items[0].DomainName, '${AMPLIFY_APP_ID}')].Id" \
+    --output text 2>/dev/null || echo "")
+
+  if [ -n "$CF_DIST_ID" ] && [ "$CF_DIST_ID" != "None" ]; then
+    INVAL_ID=$(aws cloudfront create-invalidation \
+      --distribution-id "$CF_DIST_ID" \
+      --paths '/*' \
+      --query 'Invalidation.Id' \
+      --output text 2>/dev/null || echo "")
+    if [ -n "$INVAL_ID" ]; then
+      echo "  キャッシュ無効化開始 (ID: $INVAL_ID) — 完了まで 1〜2 分"
+    fi
+  else
+    echo "  CloudFront Distribution が見つかりませんでした (Amplify が自動処理済みの可能性あり)"
+  fi
+
   echo ""
   echo "======================================"
   echo "  デプロイ完了!"

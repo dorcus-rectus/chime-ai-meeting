@@ -1,4 +1,21 @@
 customHeaders:
+  # index.html はキャッシュしない (新デプロイ後に即時反映)
+  - pattern: '/index.html'
+    headers:
+      - key: 'Cache-Control'
+        value: 'no-cache, no-store, must-revalidate'
+      - key: 'Pragma'
+        value: 'no-cache'
+  # JS/CSS バンドルはコンテンツハッシュ付きファイル名のため長期キャッシュ可
+  - pattern: '/assets/**'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=31536000, immutable'
+  # aibot.mp4 などの静的アセットも適度にキャッシュ (1 週間)
+  - pattern: '**/*.mp4'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=604800'
   - pattern: '**/*'
     headers:
       # HTTP Strict Transport Security: HTTPS 通信を 1 年間強制
