@@ -684,6 +684,37 @@ export class ChimeAiMeetingStack extends cdk.Stack {
           status: '200',
         },
       ],
+      // Amplify はマニュアルデプロイ (zip 形式) を使用しているため customHttp.yml を読まない。
+      // セキュリティヘッダーを CfnApp に直接設定して CloudFront に確実に反映させる。
+      customHeaders: [
+        'customHeaders:',
+        '  - pattern: "/index.html"',
+        '    headers:',
+        '      - key: Cache-Control',
+        '        value: "no-cache, no-store, must-revalidate"',
+        '      - key: Pragma',
+        '        value: no-cache',
+        '  - pattern: "/assets/**"',
+        '    headers:',
+        '      - key: Cache-Control',
+        '        value: "public, max-age=31536000, immutable"',
+        '  - pattern: "**/*.mp4"',
+        '    headers:',
+        '      - key: Cache-Control',
+        '        value: "public, max-age=604800"',
+        '  - pattern: "**/*"',
+        '    headers:',
+        '      - key: Strict-Transport-Security',
+        '        value: "max-age=31536000; includeSubDomains; preload"',
+        '      - key: X-Frame-Options',
+        '        value: DENY',
+        '      - key: X-Content-Type-Options',
+        '        value: nosniff',
+        '      - key: Referrer-Policy',
+        '        value: strict-origin-when-cross-origin',
+        '      - key: Content-Security-Policy',
+        "        value: \"default-src 'self'; connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com https://*.chime.aws wss://*.amazonaws.com wss://*.chime.aws; worker-src blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';\"",
+      ].join('\n'),
     });
 
     new amplify.CfnBranch(this, 'AmplifyMainBranch', {
