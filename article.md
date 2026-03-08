@@ -19,6 +19,7 @@
 | ユーザー認証・管理 | Amazon Cognito |
 | インフラのコード管理 | AWS CDK (TypeScript) |
 | CI/CD パイプライン | AWS CodeCommit + CodePipeline + Amplify |
+| テスト | Vitest (単体) + Playwright (E2E) + ESLint + Prettier |
 | フロントエンド | React + Vite + Amplify Hosting |
 
 :::message
@@ -26,8 +27,9 @@
 - Amazon Chime SDK の正しい IAM 権限設定 (よくある落とし穴を含む)
 - Bedrock AgentCore の CDK 定義 (L1 Construct) と Lambda からの呼び出し方
 - S3 Vectors の概要と AwsCustomResource を使った CDK プロビジョニング
-- RAG パイプラインの実装 (Titan Embeddings V2 + S3 Vectors)
+- RAG パイプラインの実装 (Titan Embeddings V2 + S3 Vectors + SQS 非同期処理)
 - CodeCommit + CodePipeline + Amplify による完全自動化 CI/CD パイプライン
+- Vitest 単体テスト・Playwright E2E テスト・ESLint/Prettier によるコード品質管理
 - iPad/iOS 対応・レスポンシブ設計の考慮点
 - HTTP セキュリティヘッダー (`customHttp.yml`) による Amplify のエンタープライズ対応
 :::
@@ -56,10 +58,12 @@
        │    │    └─ sessionId でセッション内会話履歴を自動管理
        │    └─ Amazon Polly Neural TTS → Base64 MP3
        │
-       ├─ POST /documents → Lambda: ingest-document
-       │    ├─ テキストをチャンク分割 (スライディングウィンドウ)
-       │    ├─ Titan Embeddings V2 でベクトル化
-       │    └─ S3 Vectors に PutVectors
+       ├─ POST /documents → Lambda: ingest-document (202 即時返却)
+       │    └─ SQS キューに投入 (非同期)
+       │         └─ Lambda: ingest-document-worker
+       │              ├─ テキストをチャンク分割 (スライディングウィンドウ)
+       │              ├─ Titan Embeddings V2 でベクトル化 (並列 5 件)
+       │              └─ S3 Vectors に PutVectors (25 件バッチ)
        │
        ├─ GET  /users     → Lambda: user-management → Cognito AdminGetUser
        └─ DELETE /users   → Lambda: user-management → Cognito AdminDeleteUser
@@ -540,43 +544,123 @@ CDK の AwsCustomResource は内部的に AWS SDK v3 を使っています。S3 
 PascalCase にするとデプロイは通るが実行時エラーになります。
 :::
 
-### RAG パイプライン: ドキュメント登録
+### RAG パイプライン: ドキュメント登録 (SQS 非同期)
+
+API Gateway には **29 秒のハードタイムアウト**があります。大きなドキュメントを登録する場合、Titan Embeddings を逐次呼び出すと容易にこの制限を超えます。本システムでは **SQS を使った非同期アーキテクチャ**を採用し、POST リクエストを即座に 202 で返しつつ、実際の埋め込み処理をワーカー Lambda で非同期実行します。
+
+```
+POST /documents
+  → ingest-document Lambda (入力検証 + SQS 送信 → 202 即時返却)
+          ↓ 非同期
+     SQS キュー (可視性タイムアウト 1800 秒、DLQ 付き)
+          ↓
+     ingest-document-worker Lambda (チャンク分割 → 埋め込み → S3 Vectors)
+```
+
+**フロントエンド側の受付 Lambda** (`ingest-document/index.ts`):
 
 ```typescript
-// cdk/lambda/ingest-document/index.ts
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+
+// SQS メッセージサイズ上限は 256KB — 超過時は早期エラー
+const messageBody = JSON.stringify({ content: content.trim(), source, userId });
+if (Buffer.byteLength(messageBody, 'utf8') > 250_000) {
+  return { statusCode: 413, body: JSON.stringify({
+    error: 'ドキュメントが大きすぎます (上限 250KB)。分割して登録してください',
+  })};
+}
+
+await sqsClient.send(new SendMessageCommand({
+  QueueUrl: INGEST_QUEUE_URL,
+  MessageBody: messageBody,
+}));
+
+// 202 Accepted — 処理は非同期で継続
+return { statusCode: 202, body: JSON.stringify({
+  message: '登録リクエストを受け付けました — 数秒後に AI が参照できるようになります',
+  source,
+})};
+```
+
+**ワーカー Lambda** (`ingest-document-worker/index.ts`):
+
+```typescript
+import type { SQSEvent, SQSBatchResponse, SQSBatchItemFailure } from 'aws-lambda';
 import { S3VectorsClient, PutVectorsCommand } from '@aws-sdk/client-s3vectors';
 
-const s3VectorsClient = new S3VectorsClient({ region: REGION });
+// SQS バッチ処理: 部分失敗に対応 (失敗メッセージのみ DLQ へ)
+export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
+  const failures: SQSBatchItemFailure[] = [];
 
-// 1. テキストをチャンク分割 (スライディングウィンドウ: 500字, 50字オーバーラップ)
-const chunks = splitIntoChunks(content, 500, 50);
+  for (const record of event.Records) {
+    try {
+      const { content, source, userId } = JSON.parse(record.body);
 
-// 2. 各チャンクを並列でベクトル化 (同時実行 5 件でスロットリング回避)
-const EMBED_CONCURRENCY = 5;
-const vectors = new Array(chunks.length);
+      // 1. チャンク分割 (スライディングウィンドウ: 500字, 50字オーバーラップ)
+      const chunks = splitIntoChunks(content, 500, 50);
 
-for (let i = 0; i < chunks.length; i += EMBED_CONCURRENCY) {
-  const batch = chunks.slice(i, i + EMBED_CONCURRENCY);
-  const embeddings = await Promise.all(batch.map((chunk) => embedText(chunk)));
-  embeddings.forEach((embedding, j) => {
-    vectors[i + j] = {
-      key: `${userId}/${crypto.randomUUID()}`,
-      data: { float32: embedding },     // ⚠️ float32 が camelCase のキー名
-      metadata: { text: chunks[i + j], source, userId, chunkIndex: i + j },
-    };
-  });
-}
+      // 2. 並列でベクトル化 (同時 5 件でスロットリング回避)
+      const vectors: VectorEntry[] = [];
+      for (let i = 0; i < chunks.length; i += 5) {
+        const batch = chunks.slice(i, i + 5);
+        const embeddings = await Promise.all(batch.map(embedText));
+        embeddings.forEach((embedding, j) => {
+          vectors.push({
+            key: `${userId}/${crypto.randomUUID()}`,
+            data: { float32: embedding },
+            metadata: { text: chunks[i + j], source, userId, chunkIndex: i + j },
+          });
+        });
+      }
 
-// 3. S3 Vectors に 25 件ずつバッチ書き込み
-for (let i = 0; i < vectors.length; i += 25) {
-  await s3VectorsClient.send(
-    new PutVectorsCommand({
-      vectorBucketName: VECTOR_BUCKET_NAME,  // camelCase
-      indexName: VECTOR_INDEX_NAME,          // camelCase
-      vectors: vectors.slice(i, i + 25),
-    }),
-  );
-}
+      // 3. S3 Vectors に 25 件ずつバッチ書き込み
+      for (let i = 0; i < vectors.length; i += 25) {
+        await s3VectorsClient.send(new PutVectorsCommand({
+          vectorBucketName: VECTOR_BUCKET_NAME,
+          indexName: VECTOR_INDEX_NAME,
+          vectors: vectors.slice(i, i + 25),
+        }));
+      }
+    } catch (err) {
+      console.error('インジェスト失敗:', record.messageId, err);
+      failures.push({ itemIdentifier: record.messageId });
+    }
+  }
+
+  // 失敗したメッセージのみ DLQ へ送られる (成功分は自動削除)
+  return { batchItemFailures: failures };
+};
+```
+
+CDK でのキューとワーカーの定義:
+
+```typescript
+// DLQ (14 日間保持)
+const dlq = new sqs.Queue(this, 'IngestDocumentDlq', {
+  queueName: 'chime-ai-ingest-dlq',
+  retentionPeriod: cdk.Duration.days(14),
+});
+
+// メインキュー (可視性タイムアウト 30 分、最大 3 回リトライ後 DLQ へ)
+const ingestQueue = new sqs.Queue(this, 'IngestDocumentQueue', {
+  queueName: 'chime-ai-ingest-queue',
+  visibilityTimeout: cdk.Duration.seconds(1800),
+  deadLetterQueue: { queue: dlq, maxReceiveCount: 3 },
+});
+
+// ワーカー Lambda (タイムアウト 5 分)
+const workerFn = new lambdaNodejs.NodejsFunction(this, 'IngestDocumentWorkerFunction', {
+  entry: 'lambda/ingest-document-worker/index.ts',
+  timeout: cdk.Duration.seconds(300),
+  memorySize: 512,
+  environment: commonEnv,
+});
+
+// SQS トリガー (バッチサイズ 1、部分失敗レポート有効)
+workerFn.addEventSource(new lambdaEventSources.SqsEventSource(ingestQueue, {
+  batchSize: 1,
+  reportBatchItemFailures: true,
+}));
 ```
 
 ### RAG パイプライン: クエリ時の検索
@@ -966,7 +1050,7 @@ git push → CodeCommit (main ブランチ)
                         └─ Deploy: CodeBuild で npx cdk deploy
 ```
 
-#### buildspec-cdk.yml
+#### buildspec-cdk.yml (CDK パイプライン)
 
 ```yaml
 version: 0.2
@@ -983,6 +1067,47 @@ phases:
     commands:
       - npx cdk deploy --all --require-approval never --ci
 ```
+
+#### amplify.yml (フロントエンド + テスト)
+
+フロントエンドのビルドに加え、**ESLint → Vitest 単体テスト → ビルド → Playwright E2E テスト** の順でステージを実行します。
+
+```yaml
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd frontend
+        - npm ci
+        - npx playwright install chromium --with-deps
+    build:
+      commands:
+        # ── 静的解析 ──────────────────────────────────────
+        - npm run lint
+        # ── 単体テスト (Vitest) ───────────────────────────
+        - npm run test -- --run --reporter=verbose
+        # ── ビルド ────────────────────────────────────────
+        - npm run build
+        # ── E2E テスト (Playwright) ───────────────────────
+        # TEST_EMAIL / TEST_PASSWORD 設定時は認証テストも実行
+        - |
+          if [ -n "$TEST_EMAIL" ] && [ -n "$TEST_PASSWORD" ]; then
+            npx playwright test --reporter=line
+          else
+            npx playwright test e2e/login.spec.ts --reporter=line
+          fi
+  artifacts:
+    baseDirectory: frontend/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/node_modules/**/*
+      - frontend/.cache/ms-playwright/**/*
+```
+
+`TEST_EMAIL` / `TEST_PASSWORD` は Amplify コンソールの「環境変数」で設定します。未設定の場合は認証不要の `login.spec.ts` のみ実行され、ビルドをブロックしません。
 
 #### CDK での CodePipeline 定義
 
@@ -1118,7 +1243,153 @@ requestAnimationFrame(tick);
 
 ---
 
-## 9. ハマったポイントまとめ
+## 9. テスト戦略: Vitest + Playwright MCP
+
+CI/CD パイプラインの品質ゲートとして、単体テスト・E2E テスト・静的解析を整備しました。
+
+### 単体テスト (Vitest + Testing Library)
+
+React コンポーネントとカスタムフックを jsdom 環境でテストします。
+
+```typescript
+// frontend/vitest.config.ts
+export default mergeConfig(viteConfig, defineConfig({
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/__tests__/setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      thresholds: { statements: 50, branches: 50, functions: 50, lines: 50 },
+    },
+  },
+}));
+```
+
+ブラウザ API (`AudioContext`・`HTMLMediaElement`・`webkitSpeechRecognition` など) は jsdom に存在しないため、セットアップファイルでモックします。
+
+```typescript
+// src/__tests__/setup.ts
+import '@testing-library/jest-dom/vitest';
+
+// Chime SDK / Polly が内部使用する AudioContext
+window.AudioContext = class {
+  createAnalyser() { return { connect: vi.fn(), getByteFrequencyData: vi.fn(), frequencyBinCount: 128 }; }
+  createMediaStreamSource() { return { connect: vi.fn() }; }
+} as unknown as typeof AudioContext;
+
+// HTMLMediaElement の play/pause はブラウザ実装が必要なためスタブ化
+Object.defineProperty(HTMLMediaElement.prototype, 'play', { value: vi.fn().mockResolvedValue(undefined) });
+Object.defineProperty(HTMLMediaElement.prototype, 'muted', { set: vi.fn(), get: () => false });
+
+// Web Speech API フォールバック
+(window as any).webkitSpeechRecognition = class {
+  continuous = false; interimResults = false; lang = '';
+  onresult: ((e: any) => void) | null = null;
+  onerror:  ((e: any) => void) | null = null;
+  onend:    (() => void) | null = null;
+  start = vi.fn(); stop = vi.fn(); abort = vi.fn();
+};
+```
+
+テスト対象のコンポーネントとフック:
+
+| ファイル | テスト数 | 主な検証内容 |
+|--------|---------|------------|
+| `AIParticipant.test.tsx` | 8 | アイドル・解析中・応答中の状態表示、動画要素の存在 |
+| `DocumentUpload.test.tsx` | 6 | フォームの有効化条件、202 非同期レスポンス、フォームクリア |
+| `LoginScreen.test.tsx` | 7 | ログイン呼び出し、モード切り替え、パスワードバリデーション |
+| `useAIConversation.test.ts` | 8 | 初期状態、ガード条件、成功/エラーフロー、クリア処理 |
+
+### E2E テスト (Playwright)
+
+実際のブラウザを使ったエンドツーエンドテストを Playwright で実装しています。
+
+```typescript
+// frontend/playwright.config.ts
+export default defineConfig({
+  use: {
+    baseURL: 'http://localhost:3000',
+    // マイク・カメラのダミーデバイスで実機なしにテスト可能
+    launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
+    permissions: ['camera', 'microphone'],
+  },
+  webServer: {
+    command: 'npm run dev',
+    port: 3000,
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+E2E テストは認証情報の有無で実行範囲を切り替えます。
+
+```typescript
+// e2e/login.spec.ts — 認証不要 (常に実行)
+test('ログインフォームの要素が揃っている', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByLabel('メールアドレス')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ログイン' })).toBeVisible();
+});
+
+// e2e/meeting.spec.ts — 認証あり (TEST_EMAIL/TEST_PASSWORD が必要)
+test.skip(!HAS_AUTH_CREDENTIALS, 'TEST_EMAIL / TEST_PASSWORD が未設定のためスキップ');
+
+test('AI アバターカードが表示される', async ({ page }) => {
+  await login(page, TEST_EMAIL, TEST_PASSWORD);
+  await page.getByRole('button', { name: '会議を開始する' }).click();
+  await expect(page.locator('text=AI アシスタント')).toBeVisible();
+  await expect(page.locator('video[src="/aibot.mp4"]')).toBeVisible();
+});
+```
+
+### Playwright MCP 連携
+
+`.mcp.json` に `@playwright/mcp` を設定することで、Claude Code が開発中にブラウザを直接操作できます。
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest", "--browser", "chromium"],
+      "env": {
+        "PLAYWRIGHT_BROWSERS_PATH": "./frontend/node_modules/.cache/ms-playwright"
+      }
+    }
+  }
+}
+```
+
+これにより「ログイン画面を確認して」「RAG フォームに文字を入力してボタンをクリックして」などの指示で Claude Code が実際のブラウザを操作し、スクリーンショット取得・UI 確認・不具合の早期発見ができます。コードレビューと並行して視覚的な動作確認が可能になります。
+
+### 静的解析 (ESLint + Prettier)
+
+```bash
+npm run lint        # ESLint (TypeScript + React Hooks ルール)
+npm run format      # Prettier 自動整形
+npm run lint:fix    # ESLint 自動修正
+```
+
+ESLint v9 のフラット設定ファイルを使用しています。
+
+```javascript
+// frontend/eslint.config.js
+import tseslint from 'typescript-eslint';
+import reactHooks from 'eslint-plugin-react-hooks';
+import prettier from 'eslint-config-prettier';
+
+export default tseslint.config(
+  tseslint.configs.recommended,
+  { plugins: { 'react-hooks': reactHooks }, rules: reactHooks.configs.recommended.rules },
+  prettier,  // Prettier との競合ルールを無効化
+);
+```
+
+---
+
+## 10. ハマったポイントまとめ
 
 実装中に遭遇したつまずきポイントを整理します。同じシステムを構築する方の参考になれば幸いです。
 
@@ -1137,10 +1408,15 @@ requestAnimationFrame(tick);
 | 11 | `jp.*` 推論プロファイルで "Access denied" (stream 内) | Bedrock Agent ロールに `aws-marketplace:*` がない | Agent ロールに `ViewSubscriptions` / `Subscribe` を追加 |
 | 12 | 音声認識が全く動かない (認識はするが AI に届かない) | stale closure: `recognition.onresult` が古い `sendTranscript` (sessionId=null) をキャプチャ | `onTranscriptRef = useRef` パターンで常に最新の関数を参照 |
 | 13 | Amplify にリポジトリ接続できない | 手動デプロイブランチが残存している | `delete-branch` で手動ブランチを先に削除してから接続 |
+| 14 | RAG 登録で 504 Gateway Timeout | Titan Embeddings を API Gateway 内で同期実行 → 29 秒超過 | SQS キューで非同期化: 受付 Lambda は 202 即時返却、Worker Lambda で埋め込み処理 |
+| 15 | 書き起こしが AI に 2 回届く | Chime Transcribe と Web Speech API が同じ発話に対して両方 fire | `lastAccumulatedRef` で 2 秒以内の同一テキストを重複排除 |
+| 16 | 画面共有 `<video>` が表示されない | `startScreenShare()` 呼び出し時点で `screenVideoRef.current` が null (条件付きレンダリングで未マウント) | `<video>` を常に描画して非共有時は `display: none` で隠す |
+| 17 | コンパイル済み `.js` が TypeScript を上書き | Vite のモジュール解決は `.js` を `.tsx` より優先するため、過去にコンパイルした `.js` が残るとそちらが読まれる | `git rm -f` で `src/` 内の `.js` を全削除し `.gitignore` に追加 |
+| 18 | Playwright テストで `getByLabelText` が失敗 | `<label>` に `htmlFor` / `<input>` に `id` が未設定 | `htmlFor`/`id` を全フォーム要素に追加して label-input を関連付け |
 
 ---
 
-## 10. フロントエンドセキュリティ: Amplify のエンタープライズ対応
+## 11. フロントエンドセキュリティ: Amplify のエンタープライズ対応
 
 エンタープライズ用途で導入する際、バックエンド（API Gateway + Cognito）の保護に加え、フロントエンドをホストするインフラのセキュリティ要件も問われます。Amplify Hosting は直近のアップデートにより、これらの要件に対応できるようになっています。
 
