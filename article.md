@@ -2169,6 +2169,7 @@ export default tseslint.config(
 | 26 | ミュート後に発話が AI に届かない | ミュート時に debounce タイマーをキャンセルするだけで、溜まっていた発話テキストを破棄していた | `toggleMute` の else ブランチで `pendingTextRef.current.trim()` を確認し、あれば即時 `showSilenceConfirm = true` でダイアログ表示 |
 | 27 | 画面共有なしで常にカメラ映像を AI に送っていた | 旧実装は手動📸ボタン (`isCameraAI` state) で切り替えていたが、ボタンを押し忘れると毎回カメラ映像が送られ API コストが増大 | `shouldCaptureCamera(text)` でキーワード検知: カメラ関連ワード (カメラ/映像/顔/どう見え) が含まれる場合のみ `captureLocalFrame()` を呼ぶ |
 | 28 | Chime SDK が CSP でブロックされ音声送信が失敗 | `connect-src` に `wss://*.chime.aws` しか設定しておらず、HTTPS の worker JS (`https://static.sdkassets.chime.aws`) と ingest API (`https://data.svc.an1.ingest.chime.aws`) がブロックされていた。また `worker-src` 未設定で Blob URL から Web Worker を作れなかった | `connect-src` に `https://*.chime.aws` を追加、`worker-src blob:` ディレクティブを追加 |
+| 29 | `customHttp.yml` を更新しても CSP が変わらない | `enableAutoBuild: false` + zip マニュアルデプロイを使用しているため `customHttp.yml` は Amplify に読まれない | CDK の `CfnApp.customHeaders` プロパティに直接記述する。`cdk deploy` のタイミングで CloudFront に確実に反映される |
 
 ---
 
@@ -2179,6 +2180,31 @@ export default tseslint.config(
 ### HTTP セキュリティヘッダーの実装
 
 クリックジャッキング・XSS・MIME スニッフィングなどをブラウザ側で防ぐ HTTP セキュリティヘッダーは、リポジトリに `customHttp.yml` を配置するだけで Amplify に適用できます。
+
+:::message alert
+**`customHttp.yml` が反映されない場合**
+
+`customHttp.yml` は Amplify の **git ベースのビルド**でのみ読み込まれます。CDK で `enableAutoBuild: false` を設定している場合や zip ファイルを直接アップロードするマニュアルデプロイを採用している場合は `customHttp.yml` は**一切読まれません**。
+
+この場合は CDK の `CfnApp` に `customHeaders` プロパティを直接記述することで確実に反映できます:
+
+```typescript
+const amplifyApp = new amplify.CfnApp(this, 'AmplifyApp', {
+  name: 'my-app',
+  // ...
+  customHeaders: [
+    'customHeaders:',
+    '  - pattern: "**/*"',
+    '    headers:',
+    "      - key: Content-Security-Policy",
+    "        value: \"default-src 'self'; connect-src 'self' https://*.chime.aws ...\"",
+  ].join('\n'),
+});
+```
+
+`CfnApp.customHeaders` に設定した内容は `cdk deploy` のタイミングで CloudFront に反映されるため、デプロイ方式に依存しません。
+:::
+
 
 ```yaml
 # customHttp.yml (リポジトリルートに配置)
