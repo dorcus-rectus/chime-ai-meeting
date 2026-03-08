@@ -34,7 +34,9 @@ test.describe('ログイン画面', () => {
 
   test('新規登録画面から「ログイン」に戻れる', async ({ page }) => {
     await page.getByRole('button', { name: '新規登録' }).click();
-    await page.getByRole('button', { name: 'ログインに戻る' }).click();
+    // register モードでは「ログイン」リンクで login に戻る
+    // (「ログインに戻る」は confirm モード専用)
+    await page.getByRole('button', { name: 'ログイン', exact: true }).click();
     await expect(page.getByRole('button', { name: 'ログイン' })).toBeVisible();
   });
 
@@ -54,11 +56,13 @@ test.describe('ログイン画面', () => {
     await page.getByLabel('メールアドレス').fill('test@example.com');
     await page.getByLabel(/パスワード/).fill('short1');
     await page.getByRole('button', { name: 'アカウント作成' }).click();
-    await expect(page.locator('text=/8文字以上/')).toBeVisible();
+    // ラベルではなくエラーメッセージ div を確実に指定
+    await expect(page.locator('text=パスワードは8文字以上にしてください')).toBeVisible();
   });
 
   test('ログイン画面のスクリーンショット (ビジュアルリグレッション)', async ({ page }) => {
     // Claude Code の MCP がこのスクリーンショットを参照して UI を確認できる
+    // CI ではベースラインを更新モードで実行し、初回は skip する
     await expect(page).toHaveScreenshot('login-screen.png', {
       maxDiffPixelRatio: 0.05,
     });
