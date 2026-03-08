@@ -6,6 +6,13 @@
 
 日本語で話しかけると AI が音声で応答し、画面共有中は画面の内容を解析して回答するシステムです。
 
+:::message
+**💡 読者の方へ**
+本記事はフロントエンドからインフラ、CI/CD、テスト、セキュリティまでを網羅した完全ガイドです。実装時に辞書的に使えるようまとめているため、**気になった方はぜひ「ストック」して目次から必要なセクションへジャンプしてご活用ください。**
+
+**📦 ソースコードの完全版:** https://github.com/your-org/chime-ai-meeting (記事末尾にもリンクあり)
+:::
+
 ### システムの主な機能
 
 | 機能 | 使用サービス |
@@ -20,7 +27,7 @@
 | インフラのコード管理 | AWS CDK (TypeScript) |
 | CI/CD パイプライン | AWS CodeCommit + CodePipeline + Amplify |
 | テスト | Vitest (単体) + Playwright (E2E) + ESLint + Prettier |
-| フロントエンド | React + Vite + Amplify Hosting |
+| フロントエンド | React 19 + Vite 7 + Amplify Hosting |
 
 :::message
 **この記事で扱う内容**
@@ -778,6 +785,8 @@ async function embedText(text: string): Promise<number[]> {
 
 RAG → AgentCore → Polly → DynamoDB 保存を繋ぐエントリーポイントです。
 
+<details><summary>ai-chat Lambda ハンドラの完全なコードを見る</summary>
+
 ```typescript
 // cdk/lambda/ai-chat/index.ts (handler 関数)
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -839,6 +848,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 };
 ```
+
+</details>
 
 ---
 
@@ -1228,6 +1239,8 @@ frontend:
 
 CodePipeline は CDK でコード化できます。EventBridge ルールと組み合わせることで、CodeCommit への push を検知して自動実行します。
 
+<details><summary>CodePipeline CDK 定義の完全なコードを見る</summary>
+
 ```typescript
 // CodeBuild プロジェクト (CDK デプロイ用)
 const cdkBuildProject = new codebuild.Project(this, 'CdkBuildProject', {
@@ -1272,6 +1285,8 @@ const pipeline = new codepipeline.Pipeline(this, 'CdkPipeline', {
 });
 ```
 
+</details>
+
 :::message
 **Amplify + CodeCommit 接続時の注意**
 
@@ -1287,7 +1302,7 @@ while manually deployed branch still exists.
 
 ---
 
-## 9. フロントエンド (React + Vite)
+## 9. フロントエンド (React 19 + Vite 7)
 
 ### iOS 対応: dvh で Viewport 高さを正しく扱う
 
@@ -1851,7 +1866,7 @@ Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2025 年時点で最
 |------|------------|
 | **インフラ (IaC)** | AWS CDK (TypeScript)、CodeCommit + CodePipeline |
 | **バックエンド** | Lambda、Bedrock AgentCore、S3 Vectors + SQS、Cognito (Admin API) |
-| **フロントエンド** | React + Vite、Chime SDK JS、画面共有 Canvas キャプチャ、Amplify Hosting |
+| **フロントエンド** | React 19 + Vite 7、Chime SDK JS、画面共有 Canvas キャプチャ、Amplify Hosting |
 | **セキュリティ** | Cognito JWT 認証、CSP / HSTS、Amplify WAF 統合 |
 | **CI/CD & 品質保証** | Vitest、Playwright、ESLint (`exhaustive-deps: error`)、Prettier |
 
@@ -1859,7 +1874,9 @@ Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2025 年時点で最
 
 インフラ面では **CodeCommit + CodePipeline + Amplify によるモノレポ CI/CD** を整備し、`git push` 一発でフロントエンドとインフラが同時に自動デプロイされる体制を実現しています。セキュリティ面でも `customHttp.yml` による HTTP セキュリティヘッダーと Amplify ネイティブの WAF 統合により、PoC 品質からエンタープライズ本番品質へのギャップを埋めています。
 
-ソースコードは本リポジトリで公開しています。ぜひお試しください。
+ソースコードは以下のリポジトリで公開しています。ぜひお試しください。
+
+https://github.com/your-org/chime-ai-meeting
 
 ---
 
