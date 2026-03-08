@@ -41,7 +41,10 @@ export function AIParticipant({ isSpeaking, isProcessing, aiText }: AIParticipan
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.play().catch(() => { /* autoplay blocked は無視 */ });
+    const tryPlay = () => { video.play().catch(() => {}); };
+    tryPlay();
+    video.addEventListener('canplay', tryPlay);
+    return () => video.removeEventListener('canplay', tryPlay);
   }, []);
 
   const statusColor = isProcessing ? '#f59e0b' : isSpeaking ? '#10b981' : '#00bfff';

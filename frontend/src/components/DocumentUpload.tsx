@@ -1,5 +1,9 @@
-import { useState, type CSSProperties, type FormEvent } from 'react';
+import { useState, useRef, type CSSProperties, type FormEvent, type ChangeEvent } from 'react';
 import { API_URL } from '../config';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 interface Props {
   getIdToken: () => Promise<string>;
@@ -18,7 +22,7 @@ const s: Record<string, CSSProperties> = {
   title: { fontSize: 13, fontWeight: 700, color: '#a0a0c0', letterSpacing: '0.05em' },
   textarea: {
     width: '100%',
-    height: 100,
+    height: 80,
     background: '#0f0f1a',
     border: '1px solid #2a2a4a',
     borderRadius: 8,
@@ -52,14 +56,71 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer',
     alignSelf: 'flex-start' as CSSProperties['alignSelf'],
   },
+  fileBtn: {
+    padding: '6px 12px',
+    background: 'rgba(59,130,246,0.15)',
+    border: '1px solid rgba(59,130,246,0.35)',
+    borderRadius: 8,
+    color: '#60a5fa',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+    alignSelf: 'flex-start' as CSSProperties['alignSelf'],
+  },
   status: { fontSize: 11, borderRadius: 6, padding: '6px 10px' },
+  row: { display: 'flex', gap: 8, alignItems: 'center' },
 };
+
+async function extractPdfText(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ');
+    if (pageText.trim()) pages.push(pageText.trim());
+  }
+  return pages.join('\n\n');
+}
 
 export function DocumentUpload({ getIdToken }: Props) {
   const [content, setContent] = useState('');
   const [source, setSource] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (!source.trim()) setSource(file.name.replace(/\.[^.]+$/, ''));
+
+    const isText = file.type.startsWith('text/') || /\.(txt|md|csv|log)$/i.test(file.name);
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+
+    if (isText) {
+      const text = await file.text();
+      setContent((prev) => (prev ? `${prev}\n\n${text}` : text));
+    } else if (isPdf) {
+      setIsExtracting(true);
+      try {
+        const text = await extractPdfText(file);
+        setContent((prev) => (prev ? `${prev}\n\n${text}` : text));
+      } catch {
+        setResult({ type: 'error', message: '❌ PDF のテキスト抽出に失敗しました' });
+      } finally {
+        setIsExtracting(false);
+      }
+    } else {
+      setResult({ type: 'error', message: '❌ 対応形式: TXT / MD / CSV / PDF' });
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -88,7 +149,6 @@ export function DocumentUpload({ getIdToken }: Props) {
 
       setResult({
         type: 'success',
-        // 202: 非同期処理 (SQS キューイング済み) / 200: 同期完了 (旧フロー互換)
         message: res.status === 202
           ? `✅ 登録リクエストを受け付けました — 数秒後に AI が参照できるようになります`
           : `✅ ${data.chunks ?? '?'} チャンク登録完了 — AI が参照できるようになりました`,
@@ -116,14 +176,32 @@ export function DocumentUpload({ getIdToken }: Props) {
           onChange={(e) => setSource(e.target.value)}
           placeholder="出典名 (例: 社内FAQ、製品仕様書)"
         />
+        <div style={s.row}>
+          <button
+            type="button"
+            style={{ ...s.fileBtn, opacity: isExtracting ? 0.6 : 1 }}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isExtracting}
+          >
+            {isExtracting ? '⏳ 抽出中...' : '📁 ファイル読み込み'}
+          </button>
+          <span style={{ fontSize: 10, color: '#4a4a7a' }}>TXT / MD / CSV / PDF</span>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".txt,.md,.csv,.log,.pdf,text/*"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
         <textarea
           style={s.textarea}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="AI に参照させたいテキストを貼り付けてください..."
+          placeholder="AI に参照させたいテキストを貼り付けるか、ファイルから読み込んでください..."
           required
         />
-        <button style={s.btn} type="submit" disabled={isUploading || !content.trim()}>
+        <button style={s.btn} type="submit" disabled={isUploading || isExtracting || !content.trim()}>
           {isUploading ? '登録中...' : 'インデックス登録'}
         </button>
       </form>
@@ -131,8 +209,7 @@ export function DocumentUpload({ getIdToken }: Props) {
         <div
           style={{
             ...s.status,
-            background:
-              result.type === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+            background: result.type === 'success' ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
             color: result.type === 'success' ? '#6ee7b7' : '#fca5a5',
             border: `1px solid ${result.type === 'success' ? '#10b981' : '#ef4444'}40`,
           }}

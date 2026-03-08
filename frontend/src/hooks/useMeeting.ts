@@ -134,13 +134,22 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    // 重複防止: 2秒以内に同じ(または包含関係の)テキストが来た場合スキップ
+    // 重複防止: 句読点を除いて比較、かつ pendingText に既に含まれている場合もスキップ
+    const norm = (s: string) => s.replace(/[。、！？\.\?!,\s]/g, '');
     const now = Date.now();
     if (lastAccumulatedRef.current) {
       const { text: last, ts } = lastAccumulatedRef.current;
-      if (now - ts < 2000 && (last === trimmed || last.includes(trimmed) || trimmed.includes(last))) {
+      const normLast = norm(last);
+      const normNew = norm(trimmed);
+      if (now - ts < 3000 && (normLast === normNew || normLast.includes(normNew) || normNew.includes(normLast))) {
         return;
       }
+    }
+    // pendingText に既に含まれていればスキップ (Chime の重複配信対策)
+    if (pendingTextRef.current) {
+      const normPending = norm(pendingTextRef.current);
+      const normNew = norm(trimmed);
+      if (normPending.includes(normNew)) return;
     }
     lastAccumulatedRef.current = { text: trimmed, ts: now };
 
@@ -166,7 +175,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   // -------------------------------------------------------
   const handleTranscriptEvent = useCallback(
     (event: TranscriptEvent) => {
-      if (isMutedRef.current || transcriptionPausedRef.current) return;
+      if (isMutedRef.current || transcriptionPausedRef.current || showSilenceConfirmRef.current) return;
       if (!(event instanceof Transcript)) return;
       for (const result of event.results) {
         if (!result.isPartial) {
@@ -193,6 +202,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   // 「AIに送る」ボタン
   // -------------------------------------------------------
   const confirmSend = useCallback((overrideText?: string) => {
+    if (debounceTimerRef.current) { clearTimeout(debounceTimerRef.current); debounceTimerRef.current = null; }
     const text = (overrideText ?? pendingTextRef.current).trim();
     pendingTextRef.current = '';
     setPendingText('');
@@ -209,6 +219,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   // 「キャンセル」ボタン: バッファを破棄してダイアログを閉じる
   // -------------------------------------------------------
   const cancelSend = useCallback(() => {
+    if (debounceTimerRef.current) { clearTimeout(debounceTimerRef.current); debounceTimerRef.current = null; }
     pendingTextRef.current = '';
     setPendingText('');
     showSilenceConfirmRef.current = false;
@@ -332,8 +343,16 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
 
         session.audioVideo.addObserver({
           videoTileDidUpdate: (tileState) => {
-            if (tileState.localTile && tileState.tileId != null && localVideoRef.current) {
-              session.audioVideo.bindVideoElement(tileState.tileId, localVideoRef.current);
+            if (tileState.localTile && tileState.tileId != null) {
+              const tileId = tileState.tileId;
+              const bind = () => {
+                if (localVideoRef.current) {
+                  session.audioVideo.bindVideoElement(tileId, localVideoRef.current);
+                }
+              };
+              bind();
+              // React がまだコミットしていない場合のリトライ
+              if (!localVideoRef.current) setTimeout(bind, 0);
             }
           },
           audioVideoDidStop: () => setStatus('ended'),

@@ -16,7 +16,7 @@ const s: Record<string, CSSProperties> = {
   videoArea: { display: 'flex', flex: 1, gap: 10, padding: 10, overflow: 'hidden' },
   videoCard: { flex: 1, background: '#1a1a2e', borderRadius: 10, overflow: 'hidden', position: 'relative', minHeight: 120 },
   screenCard: { flex: 2, background: '#0a0a1a', border: '1px solid #3b82f6', borderRadius: 10, overflow: 'hidden', position: 'relative', minHeight: 0 },
-  localVideo: { width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' },
+  localVideo: { width: '100%', height: '100%', objectFit: 'cover' },
   screenVideo: { width: '100%', height: '100%', objectFit: 'contain', background: '#0a0a1a' },
   videoLabel: { position: 'absolute', bottom: 8, left: 10, fontSize: 11, background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: 6, color: '#e0e0e0', fontWeight: 600 },
   screenLabel: { position: 'absolute', top: 8, left: 10, fontSize: 11, background: 'rgba(59,130,246,0.8)', padding: '2px 8px', borderRadius: 6, color: '#fff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 },
@@ -76,10 +76,11 @@ function ChatBubble({ msg }: { msg: ConversationMessage }) {
 interface Props {
   auth: Pick<UseAuthReturn, 'user' | 'logout' | 'getIdToken'>;
   onOpenProfile: () => void;
+  onOpenRagManagement: () => void;
 }
 
 // ─── MeetingRoom ───────────────────────────────────────────────────────────────
-export function MeetingRoom({ auth, onOpenProfile }: Props) {
+export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props) {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -262,6 +263,7 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
           <span style={{ fontSize: 12, color: '#6b7280' }}>{userEmail} でログイン中</span>
           <button style={s.logoutBtn} onClick={onOpenProfile}>アカウント設定</button>
+          <button style={s.logoutBtn} onClick={onOpenRagManagement}>RAG管理</button>
           <button style={s.logoutBtn} onClick={auth.logout}>ログアウト</button>
         </div>
       </div>
@@ -276,6 +278,7 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
         <button style={s.startBtn} onClick={handleStartMeeting}>もう一度参加する</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button style={s.logoutBtn} onClick={onOpenProfile}>アカウント設定</button>
+          <button style={s.logoutBtn} onClick={onOpenRagManagement}>RAG管理</button>
           <button style={s.logoutBtn} onClick={auth.logout}>ログアウト</button>
         </div>
       </div>
@@ -301,6 +304,7 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
             </div>
           )}
           <button style={s.logoutBtn} onClick={onOpenProfile}>設定</button>
+          <button style={s.logoutBtn} onClick={onOpenRagManagement}>RAG管理</button>
           <button style={s.logoutBtn} onClick={auth.logout}>ログアウト</button>
         </div>
       </div>

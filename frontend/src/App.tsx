@@ -3,12 +3,14 @@ import { useAuth } from './hooks/useAuth';
 import { LoginScreen } from './components/LoginScreen';
 import { MeetingRoom } from './components/MeetingRoom';
 import { UserProfile } from './components/UserProfile';
+import { RAGManagement } from './components/RAGManagement';
+
+type View = 'meeting' | 'profile' | 'rag';
 
 export default function App() {
   const auth = useAuth();
-  const [showProfile, setShowProfile] = useState(false);
+  const [view, setView] = useState<View>('meeting');
 
-  // 認証状態の確認中
   if (auth.status === 'loading') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f0f1a', color: '#a78bfa', fontSize: 16 }}>
@@ -17,21 +19,33 @@ export default function App() {
     );
   }
 
-  // 未認証: ログイン・新規登録・確認コード入力
   if (auth.status === 'unauthenticated') {
     return <LoginScreen auth={auth} />;
   }
 
-  // 認証済み: プロフィール画面
-  if (showProfile) {
+  if (view === 'profile') {
     return (
       <UserProfile
         auth={auth}
-        onBack={() => setShowProfile(false)}
+        onBack={() => setView('meeting')}
       />
     );
   }
 
-  // 認証済み: 会議室 (プロフィールへの遷移コールバックを渡す)
-  return <MeetingRoom auth={auth} onOpenProfile={() => setShowProfile(true)} />;
+  if (view === 'rag') {
+    return (
+      <RAGManagement
+        getIdToken={auth.getIdToken}
+        onBack={() => setView('meeting')}
+      />
+    );
+  }
+
+  return (
+    <MeetingRoom
+      auth={auth}
+      onOpenProfile={() => setView('profile')}
+      onOpenRagManagement={() => setView('rag')}
+    />
+  );
 }

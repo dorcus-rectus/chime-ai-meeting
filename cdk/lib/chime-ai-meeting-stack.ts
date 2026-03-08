@@ -332,6 +332,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
                 's3vectors:QueryVectors',
                 's3vectors:GetVectors',
                 's3vectors:DeleteVectors',
+                's3vectors:ListVectors',
               ],
               resources: ['*'],
             }),
@@ -496,6 +497,22 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------
+    // Lambda: ドキュメント管理 (GET /documents, DELETE /documents)
+    // -------------------------------------------------------
+    const manageDocumentsFn = new lambdaNodejs.NodejsFunction(this, 'ManageDocumentsFunction', {
+      functionName: 'chime-ai-manage-documents',
+      runtime: lambda.Runtime.NODEJS_24_X,
+      entry: path.join(__dirname, '../lambda/manage-documents/index.ts'),
+      handler: 'handler',
+      role: lambdaRole,
+      environment: commonEnv,
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      logRetention: logs.RetentionDays.ONE_WEEK,
+      bundling: bundlingOptions,
+    });
+
+    // -------------------------------------------------------
     // API Gateway — Cognito Authorizer
     // -------------------------------------------------------
     const api = new apigateway.RestApi(this, 'ChimeAiMeetingApi', {
@@ -552,11 +569,21 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       authMethodOptions,
     );
 
-    // POST /documents
+    // POST /documents (登録), GET /documents (一覧), DELETE /documents (削除)
     const documentsResource = api.root.addResource('documents');
     documentsResource.addMethod(
       'POST',
       new apigateway.LambdaIntegration(ingestDocumentFn, { proxy: true }),
+      authMethodOptions,
+    );
+    documentsResource.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(manageDocumentsFn, { proxy: true }),
+      authMethodOptions,
+    );
+    documentsResource.addMethod(
+      'DELETE',
+      new apigateway.LambdaIntegration(manageDocumentsFn, { proxy: true }),
       authMethodOptions,
     );
 
