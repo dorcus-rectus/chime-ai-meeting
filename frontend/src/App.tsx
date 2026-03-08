@@ -23,29 +23,32 @@ export default function App() {
     return <LoginScreen auth={auth} />;
   }
 
-  if (view === 'profile') {
-    return (
-      <UserProfile
-        auth={auth}
-        onBack={() => setView('meeting')}
-      />
-    );
-  }
-
-  if (view === 'rag') {
-    return (
-      <RAGManagement
-        getIdToken={auth.getIdToken}
-        onBack={() => setView('meeting')}
-      />
-    );
-  }
-
+  // MeetingRoom は常にマウントしたまま display で切り替える。
+  // アンマウントすると useMeeting の会議セッションが破棄されるため、
+  // 設定・RAG管理から戻ったときに会議が終了してしまう問題を防ぐ。
   return (
-    <MeetingRoom
-      auth={auth}
-      onOpenProfile={() => setView('profile')}
-      onOpenRagManagement={() => setView('rag')}
-    />
+    <>
+      <div style={{ display: view === 'meeting' ? undefined : 'none' }}>
+        <MeetingRoom
+          auth={auth}
+          onOpenProfile={() => setView('profile')}
+          onOpenRagManagement={() => setView('rag')}
+        />
+      </div>
+
+      {view === 'profile' && (
+        <UserProfile
+          auth={auth}
+          onBack={() => setView('meeting')}
+        />
+      )}
+
+      {view === 'rag' && (
+        <RAGManagement
+          getIdToken={auth.getIdToken}
+          onBack={() => setView('meeting')}
+        />
+      )}
+    </>
   );
 }

@@ -37,7 +37,8 @@ const corner: CSSProperties = {
 export function AIParticipant({ isSpeaking, isProcessing, aiText }: AIParticipantProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // autoPlay 属性だけでは一部ブラウザで再生されないため、マウント時に明示的に play() を呼ぶ
+  // autoPlay 属性だけでは一部ブラウザで再生されないため、マウント時に play() を呼ぶ
+  // play() は readyState に関わらず呼んでよい — ブラウザがキューに積んで再生可能になり次第実行する
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -73,7 +74,8 @@ export function AIParticipant({ isSpeaking, isProcessing, aiText }: AIParticipan
         loop
         muted
         playsInline
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        preload="auto"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
       />
 
       {/* AR コーナーブラケット — 左上 */}

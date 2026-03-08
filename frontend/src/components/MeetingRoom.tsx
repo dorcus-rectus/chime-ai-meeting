@@ -90,6 +90,8 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
 
   // カメラ設定パネル表示
   const [showCameraSettings, setShowCameraSettings] = useState(false);
+  // カメラ映像を AI に解析させるか
+  const [isCameraAI, setIsCameraAI] = useState(false);
   // 無音確認ダイアログ内の編集テキスト
   const [editedText, setEditedText] = useState('');
 
@@ -109,8 +111,10 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
     startContentShare, stopContentShare,
     confirmSend, cancelSend, confirmContinue,
     pauseTranscription, resumeTranscription,
+    captureLocalFrame,
   } = useMeeting((transcript) => {
-    const frame = isSharing ? captureFrame() : null;
+    // 画面共有 → 画面フレーム、カメラ解析モード → カメラフレーム、それ以外 → テキストのみ
+    const frame = isSharing ? captureFrame() : isCameraAI ? captureLocalFrame() : null;
     // sendTranscript は下で定義されるが、この callback は呼ばれる時点では定義済み
     sendTranscript(transcript, frame ?? undefined);
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -329,7 +333,7 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
           {/* Chime SDK が bindVideoElement で video 要素の style.transform を直接上書きするため、
               mirror 用の transform はラッパー div に適用し Chime の干渉を避ける */}
           <div style={s.videoCard}>
-            <div style={{ width: '100%', height: '100%', transform: isDummyCamera ? 'none' : 'scaleX(-1)' }}>
+            <div style={{ width: '100%', height: '100%', transform: isDummyCamera ? 'scaleX(-1)' : 'none' }}>
               <video
                 ref={localVideoRef as RefObject<HTMLVideoElement>}
                 autoPlay
@@ -528,6 +532,14 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
           title={isSharing ? '画面共有を停止' : '画面を共有して AI に解析させる'}
         >
           🖥️
+        </button>
+        <button
+          style={{ ...s.btn, background: isCameraAI && isVideoOn ? '#10b981' : '#2a2a4a', color: '#fff' }}
+          onClick={() => setIsCameraAI((p) => !p)}
+          title={isCameraAI ? 'カメラ解析 ON — 発話時にカメラ映像を AI に送信中' : 'カメラ解析 OFF — クリックで有効化'}
+          disabled={!isVideoOn}
+        >
+          📸
         </button>
         <button
           style={{ ...s.btn, background: showCameraSettings ? '#a78bfa' : '#2a2a4a', color: '#fff' }}

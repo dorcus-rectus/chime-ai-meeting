@@ -55,7 +55,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
         requireLowercase: true,
         requireUppercase: true,
         requireDigits: true,
-        requireSymbols: false,
+        requireSymbols: true,  // cdk-nag AwsSolutions-COG1 準拠
       },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -112,12 +112,14 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     const ingestDlq = new sqs.Queue(this, 'IngestDocumentDlq', {
       queueName: 'chime-ai-ingest-document-dlq',
       retentionPeriod: cdk.Duration.days(14), // 失敗メッセージを 2 週間保持
+      enforceSSL: true, // cdk-nag AwsSolutions-SQS4: HTTPS 通信のみ許可
     });
 
     const ingestQueue = new sqs.Queue(this, 'IngestDocumentQueue', {
       queueName: 'chime-ai-ingest-document',
       // Worker Lambda のタイムアウト (300s) × 6 = 1800s
       visibilityTimeout: cdk.Duration.seconds(1800),
+      enforceSSL: true, // cdk-nag AwsSolutions-SQS4: HTTPS 通信のみ許可
       deadLetterQueue: {
         queue: ingestDlq,
         maxReceiveCount: 3, // 3 回失敗後 DLQ へ
@@ -515,6 +517,14 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // -------------------------------------------------------
     // API Gateway — Cognito Authorizer
     // -------------------------------------------------------
+    // API Gateway アクセスログ用 CloudWatch LogGroup
+    // cdk-nag AwsSolutions-APIG1 / APIG6 準拠
+    const apiAccessLogGroup = new logs.LogGroup(this, 'ApiAccessLog', {
+      logGroupName: '/aws/apigateway/chime-ai-meeting-api',
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const api = new apigateway.RestApi(this, 'ChimeAiMeetingApi', {
       restApiName: 'chime-ai-meeting-api',
       description: 'AI ビデオ会議システム API',
@@ -522,6 +532,22 @@ export class ChimeAiMeetingStack extends cdk.Stack {
         stageName: 'prod',
         throttlingRateLimit: 100,
         throttlingBurstLimit: 200,
+        // アクセスログ: リクエスト・レスポンス・レイテンシを記録
+        accessLogDestination: new apigateway.LogGroupLogDestination(apiAccessLogGroup),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields({
+          caller: true,
+          httpMethod: true,
+          ip: true,
+          protocol: true,
+          requestTime: true,
+          resourcePath: true,
+          responseLength: true,
+          status: true,
+          user: true,
+        }),
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        dataTraceEnabled: false, // リクエストボディのログ出力は無効 (機密情報漏洩防止)
+        metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
@@ -536,6 +562,31 @@ export class ChimeAiMeetingStack extends cdk.Stack {
         maxAge: cdk.Duration.hours(1),
       },
     });
+
+    // HTTP セキュリティヘッダー: 4XX / 5XX エラーレスポンスにも付与
+    // Lambda プロキシ統合の成功レスポンスは Lambda 関数側でヘッダーを設定する
+    const securityResponseHeaders: Record<string, string> = {
+      'Access-Control-Allow-Origin': "'*'",
+      'Strict-Transport-Security': "'max-age=63072000; includeSubDomains; preload'",
+      'X-Content-Type-Options': "'nosniff'",
+      'X-Frame-Options': "'DENY'",
+      'X-XSS-Protection': "'1; mode=block'",
+      'Referrer-Policy': "'strict-origin-when-cross-origin'",
+    };
+    const gatewayResponseTypes: Array<[string, apigateway.ResponseType]> = [
+      ['BadRequestParams', apigateway.ResponseType.BAD_REQUEST_PARAMETERS],
+      ['BadRequestBody', apigateway.ResponseType.BAD_REQUEST_BODY],
+      ['AccessDenied', apigateway.ResponseType.ACCESS_DENIED],
+      ['NotFound', apigateway.ResponseType.RESOURCE_NOT_FOUND],
+      ['Throttled', apigateway.ResponseType.THROTTLED],
+      ['Default5xx', apigateway.ResponseType.DEFAULT_5XX],
+    ];
+    for (const [id, responseType] of gatewayResponseTypes) {
+      api.addGatewayResponse(`GwResp${id}`, {
+        type: responseType,
+        responseHeaders: securityResponseHeaders,
+      });
+    }
 
     const cognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(
       this,

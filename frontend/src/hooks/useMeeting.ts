@@ -51,6 +51,8 @@ export interface UseMeetingReturn {
   pauseTranscription: () => void;
   /** pauseTranscription 後に認識を再開 */
   resumeTranscription: () => void;
+  /** ローカルカメラのフレームを JPEG Base64 でキャプチャ (カメラ OFF / ダミーカメラ時は null) */
+  captureLocalFrame: (maxWidth?: number, quality?: number) => string | null;
 }
 
 /** グリッド柄のダミーカメラ MediaStream をキャンバスから生成 */
@@ -348,11 +350,16 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
               const bind = () => {
                 if (localVideoRef.current) {
                   session.audioVideo.bindVideoElement(tileId, localVideoRef.current);
+                  return true;
                 }
+                return false;
               };
-              bind();
-              // React がまだコミットしていない場合のリトライ
-              if (!localVideoRef.current) setTimeout(bind, 0);
+              // 即時試行 + React のコミット待ちリトライ (0ms / 50ms / 150ms)
+              // startLocalVideoTile() は同期的に observer を fire するため
+              // React がまだ DOM をコミットしていないことがある
+              if (!bind()) {
+                [0, 50, 150].forEach((delay) => setTimeout(bind, delay));
+              }
             }
           },
           audioVideoDidStop: () => setStatus('ended'),
@@ -463,6 +470,29 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     },
     [isDummyCamera, selectedDeviceId],
   );
+
+  /**
+   * ローカルカメラのフレームを JPEG Base64 でキャプチャする。
+   * カメラ OFF またはダミーカメラ使用時は null を返す。
+   */
+  const captureLocalFrame = useCallback((maxWidth = 640, quality = 0.6): string | null => {
+    const video = localVideoRef.current;
+    if (!video || !isVideoOn || isDummyCamera || video.videoWidth === 0) return null;
+
+    const scale = Math.min(1, maxWidth / video.videoWidth);
+    const w = Math.round(video.videoWidth * scale);
+    const h = Math.round(video.videoHeight * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    // scaleX(-1) のミラー表示をキャンセルして元の向きで描画
+    ctx.drawImage(video, 0, 0, w, h);
+
+    return canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null;
+  }, [isVideoOn, isDummyCamera]);
 
   const startContentShare = useCallback(async (stream: MediaStream) => {
     const session = sessionRef.current;
@@ -584,5 +614,6 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     confirmContinue,
     pauseTranscription,
     resumeTranscription,
+    captureLocalFrame,
   };
 }

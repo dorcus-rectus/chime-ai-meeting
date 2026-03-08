@@ -5,6 +5,9 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:update": "jest --updateSnapshot",
     "cdk": "cdk",
     "deploy": "cdk deploy --require-approval never",
     "destroy": "cdk destroy"
@@ -26,9 +29,13 @@
   },
   "devDependencies": {
     "@aws-sdk/client-bedrock-agent": "^3.1004.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
     "aws-cdk": "^2.170.0",
+    "cdk-nag": "^2.37.55",
     "esbuild": "^0.24.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "ts-node": "^10.9.0",
     "typescript": "^5.7.0"
   }

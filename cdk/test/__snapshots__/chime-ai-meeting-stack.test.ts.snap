@@ -1,0 +1,2907 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`スナップショット CloudFormation テンプレートがスナップショットと一致する 1`] = `
+{
+  "Metadata": {
+    "cdk_nag": {
+      "rules_to_suppress": [
+        {
+          "id": "AwsSolutions-IAM4",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBBV1NMYW1iZGFCYXNpY0V4ZWN1dGlvblJvbGUg44Gv5pyA5bCP5qip6ZmQ44Oe44ON44O844K444OJ44Od44Oq44K344O8",
+        },
+        {
+          "id": "AwsSolutions-IAM5",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBCZWRyb2NrL1BvbGx5L0NoaW1lL1MzVmVjdG9ycyDjga/jg6rjgr3jg7zjgrkgQVJOIOaMh+WumuS4jeWPrw==",
+        },
+        {
+          "id": "AwsSolutions-L1",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBDREsg5YaF6YOoIExvZ1JldGVudGlvbiBMYW1iZGEg44Gv44Op44Oz44K/44Kk44Og44KS5Yi25b6h44Gn44GN44Gq44GE",
+        },
+        {
+          "id": "AwsSolutions-SQS3",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBETFEg6Ieq5L2T44GrIERMUSDjga/oqK3lrprjgZfjgarjgYTpgYvnlKjjg5Xjg63jg7w=",
+        },
+        {
+          "id": "AwsSolutions-APIG2",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBMYW1iZGEg5YaF44OQ44Oq44OH44O844K344On44Oz44Gn5Luj5pu/",
+        },
+        {
+          "id": "AwsSolutions-APIG4",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBDb2duaXRvIEF1dGhvcml6ZXIg44KS5YWo44Ko44Oz44OJ44Od44Kk44Oz44OI44Gr6YGp55So5riI44G/",
+        },
+        {
+          "id": "AwsSolutions-COG4",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiDlkIzkuIo=",
+        },
+        {
+          "id": "AwsSolutions-COG3",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBBZHZhbmNlZFNlY3VyaXR5TW9kZSDjga/ov73liqDmlpnph5Hjga7jgZ/jgoHopoHku7blpJY=",
+        },
+        {
+          "id": "AwsSolutions-COG7",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBNRkEg44Gv6KaB5Lu25aSW",
+        },
+      ],
+    },
+  },
+  "Outputs": {
+    "AmplifyAppId": {
+      "Description": "Amplify App ID",
+      "Export": {
+        "Name": "ChimeAiMeetingAmplifyAppId",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "AmplifyApp",
+          "AppId",
+        ],
+      },
+    },
+    "AmplifyDefaultDomain": {
+      "Description": "Amplify ホスティング URL",
+      "Export": {
+        "Name": "ChimeAiMeetingAmplifyUrl",
+      },
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://main.",
+            {
+              "Fn::GetAtt": [
+                "AmplifyApp",
+                "DefaultDomain",
+              ],
+            },
+          ],
+        ],
+      },
+    },
+    "ApiUrl": {
+      "Description": "API Gateway エンドポイント URL",
+      "Export": {
+        "Name": "ChimeAiMeetingApiUrl",
+      },
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Ref": "ChimeAiMeetingApi9D1E00BD",
+            },
+            ".execute-api.ap-northeast-1.",
+            {
+              "Ref": "AWS::URLSuffix",
+            },
+            "/",
+            {
+              "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+            },
+            "/",
+          ],
+        ],
+      },
+    },
+    "BedrockAgentAliasId": {
+      "Description": "Bedrock AgentCore エイリアス ID",
+      "Export": {
+        "Name": "ChimeAiBedrockAgentAliasId",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "AiMeetingAgentAlias",
+          "AgentAliasId",
+        ],
+      },
+    },
+    "BedrockAgentId": {
+      "Description": "Bedrock AgentCore エージェント ID",
+      "Export": {
+        "Name": "ChimeAiBedrockAgentId",
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "AiMeetingAgent",
+          "AgentId",
+        ],
+      },
+    },
+    "ChimeAiMeetingApiEndpoint767880B9": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Ref": "ChimeAiMeetingApi9D1E00BD",
+            },
+            ".execute-api.ap-northeast-1.",
+            {
+              "Ref": "AWS::URLSuffix",
+            },
+            "/",
+            {
+              "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+            },
+            "/",
+          ],
+        ],
+      },
+    },
+    "CognitoClientId": {
+      "Description": "Cognito App Client ID",
+      "Export": {
+        "Name": "ChimeAiCognitoClientId",
+      },
+      "Value": {
+        "Ref": "UserPoolClient2F5918F7",
+      },
+    },
+    "CognitoUserPoolId": {
+      "Description": "Cognito User Pool ID",
+      "Export": {
+        "Name": "ChimeAiCognitoUserPoolId",
+      },
+      "Value": {
+        "Ref": "UserPool6BA7E5F2",
+      },
+    },
+    "IngestDlqUrl": {
+      "Description": "ドキュメント取り込み DLQ URL (失敗メッセージを確認するために使用)",
+      "Value": {
+        "Ref": "IngestDocumentDlqCE58432C",
+      },
+    },
+    "IngestQueueUrl": {
+      "Description": "ドキュメント取り込み SQS キュー URL",
+      "Value": {
+        "Ref": "IngestDocumentQueue0DA554E5",
+      },
+    },
+    "UsageTableName": {
+      "Description": "利用記録 DynamoDB テーブル",
+      "Value": {
+        "Ref": "UsageTable28300137",
+      },
+    },
+    "VectorBucketName": {
+      "Description": "S3 Vectors バケット名",
+      "Value": "chime-ai-vectors-123456789012",
+    },
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>",
+    },
+  },
+  "Resources": {
+    "AWS679f53fac002430cb0da5b7982bd22872D164C4C": {
+      "DependsOn": [
+        "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "56f7467bbde8a5efebcf57ae9e460027607099bab9f844669dcf5d800172ee5a.zip",
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 120,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "AiChatFunction29CC904C": {
+      "DependsOn": [
+        "LambdaExecutionRoleDefaultPolicy6D69732F",
+        "LambdaExecutionRoleD5C26073",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "9d67d3ea5ff4e62250ebcc87e5c252bd72844dab1baacc41b8876cc2d81cccac.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "BEDROCK_AGENT_ALIAS_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgentAlias",
+                "AgentAliasId",
+              ],
+            },
+            "BEDROCK_AGENT_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgent",
+                "AgentId",
+              ],
+            },
+            "CONVERSATION_TABLE": {
+              "Ref": "ConversationTable75C14D21",
+            },
+            "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+            "INGEST_QUEUE_URL": {
+              "Ref": "IngestDocumentQueue0DA554E5",
+            },
+            "REGION": "ap-northeast-1",
+            "USAGE_TABLE": {
+              "Ref": "UsageTable28300137",
+            },
+            "USER_POOL_ID": {
+              "Ref": "UserPool6BA7E5F2",
+            },
+            "VECTOR_BUCKET_NAME": "chime-ai-vectors-123456789012",
+            "VECTOR_INDEX_NAME": "documents",
+          },
+        },
+        "FunctionName": "chime-ai-chat",
+        "Handler": "index.handler",
+        "MemorySize": 512,
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaExecutionRoleD5C26073",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 90,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "AiChatFunctionLogRetentionE5C25910": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "AiChatFunction29CC904C",
+              },
+            ],
+          ],
+        },
+        "RetentionInDays": 7,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::LogRetention",
+    },
+    "AiMeetingAgent": {
+      "Properties": {
+        "AgentName": "chime-ai-meeting-agent",
+        "AgentResourceRoleArn": {
+          "Fn::GetAtt": [
+            "BedrockAgentRole7C982E0C",
+            "Arn",
+          ],
+        },
+        "AutoPrepare": true,
+        "FoundationModel": "jp.anthropic.claude-sonnet-4-6",
+        "IdleSessionTTLInSeconds": 1800,
+        "Instruction": "あなたはビデオ会議に参加しているフレンドリーなAIアシスタントです。ユーザーと日本語で自然な会話をしてください。返答は簡潔に2〜3文程度にまとめ、話し言葉で答えてください。会議の文脈を活かして、相手の発言に対して適切に反応してください。参考情報が提供された場合は、その内容を踏まえて回答してください。",
+      },
+      "Type": "AWS::Bedrock::Agent",
+    },
+    "AiMeetingAgentAlias": {
+      "DependsOn": [
+        "AiMeetingAgent",
+      ],
+      "Properties": {
+        "AgentAliasName": "prod",
+        "AgentId": {
+          "Fn::GetAtt": [
+            "AiMeetingAgent",
+            "AgentId",
+          ],
+        },
+      },
+      "Type": "AWS::Bedrock::AgentAlias",
+    },
+    "AmplifyApp": {
+      "Properties": {
+        "BuildSpec": "version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd frontend
+        - npm install
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: frontend/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/node_modules/**/*",
+        "CustomRules": [
+          {
+            "Source": "</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>",
+            "Status": "200",
+            "Target": "/index.html",
+          },
+        ],
+        "Name": "chime-ai-meeting",
+        "Platform": "WEB",
+      },
+      "Type": "AWS::Amplify::App",
+    },
+    "AmplifyMainBranch": {
+      "Properties": {
+        "AppId": {
+          "Fn::GetAtt": [
+            "AmplifyApp",
+            "AppId",
+          ],
+        },
+        "BranchName": "main",
+        "EnableAutoBuild": false,
+        "EnvironmentVariables": [
+          {
+            "Name": "VITE_API_URL",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  "https://",
+                  {
+                    "Ref": "ChimeAiMeetingApi9D1E00BD",
+                  },
+                  ".execute-api.ap-northeast-1.",
+                  {
+                    "Ref": "AWS::URLSuffix",
+                  },
+                  "/",
+                  {
+                    "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+                  },
+                  "/",
+                ],
+              ],
+            },
+          },
+          {
+            "Name": "VITE_REGION",
+            "Value": "ap-northeast-1",
+          },
+          {
+            "Name": "VITE_COGNITO_USER_POOL_ID",
+            "Value": {
+              "Ref": "UserPool6BA7E5F2",
+            },
+          },
+          {
+            "Name": "VITE_COGNITO_CLIENT_ID",
+            "Value": {
+              "Ref": "UserPoolClient2F5918F7",
+            },
+          },
+        ],
+        "Stage": "PRODUCTION",
+      },
+      "Type": "AWS::Amplify::Branch",
+    },
+    "ApiAccessLog3B08078D": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "LogGroupName": "/aws/apigateway/chime-ai-meeting-api",
+        "RetentionInDays": 7,
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "BedrockAgentRole7C982E0C": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": "arn:aws:bedrock:ap-northeast-1:123456789012:agent/*",
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": "123456789012",
+                },
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "bedrock.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": "bedrock:*",
+                  "Effect": "Allow",
+                  "Resource": "*",
+                },
+                {
+                  "Action": [
+                    "aws-marketplace:ViewSubscriptions",
+                    "aws-marketplace:Subscribe",
+                    "aws-marketplace:Unsubscribe",
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*",
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "BedrockModelPolicy",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "ChimeAiMeetingApi9D1E00BD": {
+      "Properties": {
+        "Description": "AI ビデオ会議システム API",
+        "Name": "chime-ai-meeting-api",
+      },
+      "Type": "AWS::ApiGateway::RestApi",
+    },
+    "ChimeAiMeetingApiAccountDD1361ED": {
+      "DeletionPolicy": "Retain",
+      "DependsOn": [
+        "ChimeAiMeetingApi9D1E00BD",
+      ],
+      "Properties": {
+        "CloudWatchRoleArn": {
+          "Fn::GetAtt": [
+            "ChimeAiMeetingApiCloudWatchRoleF41C06B0",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "AWS::ApiGateway::Account",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "ChimeAiMeetingApiCloudWatchRoleF41C06B0": {
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "apigateway.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+      "UpdateReplacePolicy": "Retain",
+    },
+    "ChimeAiMeetingApiDeployment8DE341B32c8ed9479c8fc344689d3e7184cb3500": {
+      "DependsOn": [
+        "ChimeAiMeetingApiaichatOPTIONS061FA2D3",
+        "ChimeAiMeetingApiaichatPOST60BF233F",
+        "ChimeAiMeetingApiaichat55FE2640",
+        "ChimeAiMeetingApidocumentsDELETE1B0B5C36",
+        "ChimeAiMeetingApidocumentsGET4D583B94",
+        "ChimeAiMeetingApidocumentsOPTIONS24D698C5",
+        "ChimeAiMeetingApidocumentsPOST107EF801",
+        "ChimeAiMeetingApidocumentsE2E1DC21",
+        "ChimeAiMeetingApimeetingsOPTIONSC486EE3C",
+        "ChimeAiMeetingApimeetingsPOST4328C84F",
+        "ChimeAiMeetingApimeetings3A8D7A43",
+        "ChimeAiMeetingApiOPTIONSD1AC1C71",
+        "ChimeAiMeetingApiusersDELETE1FBFAC1E",
+        "ChimeAiMeetingApiusersGETEFB9C519",
+        "ChimeAiMeetingApiusersOPTIONS4F1074F4",
+        "ChimeAiMeetingApiusersADB61DE2",
+        "ChimeAiMeetingApiGwRespAccessDenied53710FFD",
+        "ChimeAiMeetingApiGwRespBadRequestBodyD40DC534",
+        "ChimeAiMeetingApiGwRespBadRequestParams9047E612",
+        "ChimeAiMeetingApiGwRespDefault5xx8DEFCD99",
+        "ChimeAiMeetingApiGwRespNotFoundB360A5ED",
+        "ChimeAiMeetingApiGwRespThrottledF1A3672D",
+      ],
+      "Metadata": {
+        "aws:cdk:do-not-refactor": true,
+      },
+      "Properties": {
+        "Description": "AI ビデオ会議システム API",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Deployment",
+    },
+    "ChimeAiMeetingApiDeploymentStageprodC6D6954D": {
+      "DependsOn": [
+        "ChimeAiMeetingApiAccountDD1361ED",
+      ],
+      "Properties": {
+        "AccessLogSetting": {
+          "DestinationArn": {
+            "Fn::GetAtt": [
+              "ApiAccessLog3B08078D",
+              "Arn",
+            ],
+          },
+          "Format": "{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","user":"$context.identity.user","caller":"$context.identity.caller","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}",
+        },
+        "DeploymentId": {
+          "Ref": "ChimeAiMeetingApiDeployment8DE341B32c8ed9479c8fc344689d3e7184cb3500",
+        },
+        "MethodSettings": [
+          {
+            "DataTraceEnabled": false,
+            "HttpMethod": "*",
+            "LoggingLevel": "INFO",
+            "MetricsEnabled": true,
+            "ResourcePath": "/*",
+            "ThrottlingBurstLimit": 200,
+            "ThrottlingRateLimit": 100,
+          },
+        ],
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+        "StageName": "prod",
+      },
+      "Type": "AWS::ApiGateway::Stage",
+    },
+    "ChimeAiMeetingApiGwRespAccessDenied53710FFD": {
+      "Properties": {
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Referrer-Policy": "'strict-origin-when-cross-origin'",
+          "gatewayresponse.header.Strict-Transport-Security": "'max-age=63072000; includeSubDomains; preload'",
+          "gatewayresponse.header.X-Content-Type-Options": "'nosniff'",
+          "gatewayresponse.header.X-Frame-Options": "'DENY'",
+          "gatewayresponse.header.X-XSS-Protection": "'1; mode=block'",
+        },
+        "ResponseType": "ACCESS_DENIED",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::GatewayResponse",
+    },
+    "ChimeAiMeetingApiGwRespBadRequestBodyD40DC534": {
+      "Properties": {
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Referrer-Policy": "'strict-origin-when-cross-origin'",
+          "gatewayresponse.header.Strict-Transport-Security": "'max-age=63072000; includeSubDomains; preload'",
+          "gatewayresponse.header.X-Content-Type-Options": "'nosniff'",
+          "gatewayresponse.header.X-Frame-Options": "'DENY'",
+          "gatewayresponse.header.X-XSS-Protection": "'1; mode=block'",
+        },
+        "ResponseType": "BAD_REQUEST_BODY",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::GatewayResponse",
+    },
+    "ChimeAiMeetingApiGwRespBadRequestParams9047E612": {
+      "Properties": {
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Referrer-Policy": "'strict-origin-when-cross-origin'",
+          "gatewayresponse.header.Strict-Transport-Security": "'max-age=63072000; includeSubDomains; preload'",
+          "gatewayresponse.header.X-Content-Type-Options": "'nosniff'",
+          "gatewayresponse.header.X-Frame-Options": "'DENY'",
+          "gatewayresponse.header.X-XSS-Protection": "'1; mode=block'",
+        },
+        "ResponseType": "BAD_REQUEST_PARAMETERS",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::GatewayResponse",
+    },
+    "ChimeAiMeetingApiGwRespDefault5xx8DEFCD99": {
+      "Properties": {
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Referrer-Policy": "'strict-origin-when-cross-origin'",
+          "gatewayresponse.header.Strict-Transport-Security": "'max-age=63072000; includeSubDomains; preload'",
+          "gatewayresponse.header.X-Content-Type-Options": "'nosniff'",
+          "gatewayresponse.header.X-Frame-Options": "'DENY'",
+          "gatewayresponse.header.X-XSS-Protection": "'1; mode=block'",
+        },
+        "ResponseType": "DEFAULT_5XX",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::GatewayResponse",
+    },
+    "ChimeAiMeetingApiGwRespNotFoundB360A5ED": {
+      "Properties": {
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Referrer-Policy": "'strict-origin-when-cross-origin'",
+          "gatewayresponse.header.Strict-Transport-Security": "'max-age=63072000; includeSubDomains; preload'",
+          "gatewayresponse.header.X-Content-Type-Options": "'nosniff'",
+          "gatewayresponse.header.X-Frame-Options": "'DENY'",
+          "gatewayresponse.header.X-XSS-Protection": "'1; mode=block'",
+        },
+        "ResponseType": "RESOURCE_NOT_FOUND",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::GatewayResponse",
+    },
+    "ChimeAiMeetingApiGwRespThrottledF1A3672D": {
+      "Properties": {
+        "ResponseParameters": {
+          "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+          "gatewayresponse.header.Referrer-Policy": "'strict-origin-when-cross-origin'",
+          "gatewayresponse.header.Strict-Transport-Security": "'max-age=63072000; includeSubDomains; preload'",
+          "gatewayresponse.header.X-Content-Type-Options": "'nosniff'",
+          "gatewayresponse.header.X-Frame-Options": "'DENY'",
+          "gatewayresponse.header.X-XSS-Protection": "'1; mode=block'",
+        },
+        "ResponseType": "THROTTLED",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::GatewayResponse",
+    },
+    "ChimeAiMeetingApiOPTIONSD1AC1C71": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Max-Age": "'3600'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Max-Age": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Fn::GetAtt": [
+            "ChimeAiMeetingApi9D1E00BD",
+            "RootResourceId",
+          ],
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApiaichat55FE2640": {
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "ChimeAiMeetingApi9D1E00BD",
+            "RootResourceId",
+          ],
+        },
+        "PathPart": "ai-chat",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Resource",
+    },
+    "ChimeAiMeetingApiaichatOPTIONS061FA2D3": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Max-Age": "'3600'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Max-Age": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApiaichat55FE2640",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApiaichatPOST60BF233F": {
+      "Properties": {
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "AuthorizerId": {
+          "Ref": "CognitoAuthorizerF3215DBC",
+        },
+        "HttpMethod": "POST",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "AiChatFunction29CC904C",
+                    "Arn",
+                  ],
+                },
+                "/invocations",
+              ],
+            ],
+          },
+        },
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApiaichat55FE2640",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApiaichatPOSTApiPermissionTestStackChimeAiMeetingApiD34F56B2POSTaichat7AE8E307": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "AiChatFunction29CC904C",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/",
+              {
+                "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+              },
+              "/POST/ai-chat",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApiaichatPOSTApiPermissionTestTestStackChimeAiMeetingApiD34F56B2POSTaichat66810FF1": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "AiChatFunction29CC904C",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/test-invoke-stage/POST/ai-chat",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApidocumentsDELETE1B0B5C36": {
+      "Properties": {
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "AuthorizerId": {
+          "Ref": "CognitoAuthorizerF3215DBC",
+        },
+        "HttpMethod": "DELETE",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "ManageDocumentsFunctionD46E51C2",
+                    "Arn",
+                  ],
+                },
+                "/invocations",
+              ],
+            ],
+          },
+        },
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApidocumentsE2E1DC21",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApidocumentsDELETEApiPermissionTestStackChimeAiMeetingApiD34F56B2DELETEdocuments1B2D7026": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "ManageDocumentsFunctionD46E51C2",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/",
+              {
+                "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+              },
+              "/DELETE/documents",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApidocumentsDELETEApiPermissionTestTestStackChimeAiMeetingApiD34F56B2DELETEdocuments01701EC0": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "ManageDocumentsFunctionD46E51C2",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/test-invoke-stage/DELETE/documents",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApidocumentsE2E1DC21": {
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "ChimeAiMeetingApi9D1E00BD",
+            "RootResourceId",
+          ],
+        },
+        "PathPart": "documents",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Resource",
+    },
+    "ChimeAiMeetingApidocumentsGET4D583B94": {
+      "Properties": {
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "AuthorizerId": {
+          "Ref": "CognitoAuthorizerF3215DBC",
+        },
+        "HttpMethod": "GET",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "ManageDocumentsFunctionD46E51C2",
+                    "Arn",
+                  ],
+                },
+                "/invocations",
+              ],
+            ],
+          },
+        },
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApidocumentsE2E1DC21",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApidocumentsGETApiPermissionTestStackChimeAiMeetingApiD34F56B2GETdocumentsF4A6AB1E": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "ManageDocumentsFunctionD46E51C2",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/",
+              {
+                "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+              },
+              "/GET/documents",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApidocumentsGETApiPermissionTestTestStackChimeAiMeetingApiD34F56B2GETdocuments77340AB0": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "ManageDocumentsFunctionD46E51C2",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/test-invoke-stage/GET/documents",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApidocumentsOPTIONS24D698C5": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Max-Age": "'3600'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Max-Age": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApidocumentsE2E1DC21",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApidocumentsPOST107EF801": {
+      "Properties": {
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "AuthorizerId": {
+          "Ref": "CognitoAuthorizerF3215DBC",
+        },
+        "HttpMethod": "POST",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "IngestDocumentFunction76101940",
+                    "Arn",
+                  ],
+                },
+                "/invocations",
+              ],
+            ],
+          },
+        },
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApidocumentsE2E1DC21",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApidocumentsPOSTApiPermissionTestStackChimeAiMeetingApiD34F56B2POSTdocumentsCB23259D": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "IngestDocumentFunction76101940",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/",
+              {
+                "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+              },
+              "/POST/documents",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApidocumentsPOSTApiPermissionTestTestStackChimeAiMeetingApiD34F56B2POSTdocuments03148C8A": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "IngestDocumentFunction76101940",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/test-invoke-stage/POST/documents",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApimeetings3A8D7A43": {
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "ChimeAiMeetingApi9D1E00BD",
+            "RootResourceId",
+          ],
+        },
+        "PathPart": "meetings",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Resource",
+    },
+    "ChimeAiMeetingApimeetingsOPTIONSC486EE3C": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Max-Age": "'3600'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Max-Age": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApimeetings3A8D7A43",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApimeetingsPOST4328C84F": {
+      "Properties": {
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "AuthorizerId": {
+          "Ref": "CognitoAuthorizerF3215DBC",
+        },
+        "HttpMethod": "POST",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "CreateMeetingFunctionE92C6381",
+                    "Arn",
+                  ],
+                },
+                "/invocations",
+              ],
+            ],
+          },
+        },
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApimeetings3A8D7A43",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApimeetingsPOSTApiPermissionTestStackChimeAiMeetingApiD34F56B2POSTmeetings1E296E3C": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "CreateMeetingFunctionE92C6381",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/",
+              {
+                "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+              },
+              "/POST/meetings",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApimeetingsPOSTApiPermissionTestTestStackChimeAiMeetingApiD34F56B2POSTmeetingsA2C8BFEB": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "CreateMeetingFunctionE92C6381",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/test-invoke-stage/POST/meetings",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApiusersADB61DE2": {
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "ChimeAiMeetingApi9D1E00BD",
+            "RootResourceId",
+          ],
+        },
+        "PathPart": "users",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Resource",
+    },
+    "ChimeAiMeetingApiusersDELETE1FBFAC1E": {
+      "Properties": {
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "AuthorizerId": {
+          "Ref": "CognitoAuthorizerF3215DBC",
+        },
+        "HttpMethod": "DELETE",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "UserManagementFunction2338B082",
+                    "Arn",
+                  ],
+                },
+                "/invocations",
+              ],
+            ],
+          },
+        },
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApiusersADB61DE2",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApiusersDELETEApiPermissionTestStackChimeAiMeetingApiD34F56B2DELETEusers424DEDB4": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "UserManagementFunction2338B082",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/",
+              {
+                "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+              },
+              "/DELETE/users",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApiusersDELETEApiPermissionTestTestStackChimeAiMeetingApiD34F56B2DELETEusers140EF8A9": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "UserManagementFunction2338B082",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/test-invoke-stage/DELETE/users",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApiusersGETApiPermissionTestStackChimeAiMeetingApiD34F56B2GETusers2C2D45E3": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "UserManagementFunction2338B082",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/",
+              {
+                "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+              },
+              "/GET/users",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApiusersGETApiPermissionTestTestStackChimeAiMeetingApiD34F56B2GETusers03E13265": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "UserManagementFunction2338B082",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/test-invoke-stage/GET/users",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApiusersGETEFB9C519": {
+      "Properties": {
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "AuthorizerId": {
+          "Ref": "CognitoAuthorizerF3215DBC",
+        },
+        "HttpMethod": "GET",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "UserManagementFunction2338B082",
+                    "Arn",
+                  ],
+                },
+                "/invocations",
+              ],
+            ],
+          },
+        },
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApiusersADB61DE2",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApiusersOPTIONS4F1074F4": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Max-Age": "'3600'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Max-Age": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApiusersADB61DE2",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeTranscriptionSLRAD8E4BC1": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "ChimeTranscriptionSLRCustomResourcePolicy3586EC56",
+      ],
+      "Properties": {
+        "Create": "{"service":"IAM","action":"createServiceLinkedRole","parameters":{"AWSServiceName":"transcription.chime.amazonaws.com"},"physicalResourceId":{"id":"ChimeTranscriptionServiceLinkedRole"},"ignoreErrorCodesMatching":"InvalidInput"}",
+        "InstallLatestAwsSdk": true,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::AWS",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "ChimeTranscriptionSLRCustomResourcePolicy3586EC56": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "iam:CreateServiceLinkedRole",
+              "Effect": "Allow",
+              "Resource": "arn:aws:iam::123456789012:role/aws-service-role/transcription.chime.amazonaws.com/*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "ChimeTranscriptionSLRCustomResourcePolicy3586EC56",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "CognitoAuthorizerF3215DBC": {
+      "Properties": {
+        "AuthorizerResultTtlInSeconds": 300,
+        "IdentitySource": "method.request.header.Authorization",
+        "Name": "CognitoAuth",
+        "ProviderARNs": [
+          {
+            "Fn::GetAtt": [
+              "UserPool6BA7E5F2",
+              "Arn",
+            ],
+          },
+        ],
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+        "Type": "COGNITO_USER_POOLS",
+      },
+      "Type": "AWS::ApiGateway::Authorizer",
+    },
+    "ConversationTable75C14D21": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "userId",
+            "AttributeType": "S",
+          },
+          {
+            "AttributeName": "sessionId",
+            "AttributeType": "S",
+          },
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "KeySchema": [
+          {
+            "AttributeName": "userId",
+            "KeyType": "HASH",
+          },
+          {
+            "AttributeName": "sessionId",
+            "KeyType": "RANGE",
+          },
+        ],
+        "TableName": "ChimeAiConversations",
+        "TimeToLiveSpecification": {
+          "AttributeName": "ttl",
+          "Enabled": true,
+        },
+      },
+      "Type": "AWS::DynamoDB::Table",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "CreateMeetingFunctionE92C6381": {
+      "DependsOn": [
+        "LambdaExecutionRoleDefaultPolicy6D69732F",
+        "LambdaExecutionRoleD5C26073",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "78e8669f1e39a5cf407b10713eb53a3f548b9ca7befd546a43d5024298d55fe5.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "BEDROCK_AGENT_ALIAS_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgentAlias",
+                "AgentAliasId",
+              ],
+            },
+            "BEDROCK_AGENT_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgent",
+                "AgentId",
+              ],
+            },
+            "CONVERSATION_TABLE": {
+              "Ref": "ConversationTable75C14D21",
+            },
+            "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+            "INGEST_QUEUE_URL": {
+              "Ref": "IngestDocumentQueue0DA554E5",
+            },
+            "REGION": "ap-northeast-1",
+            "USAGE_TABLE": {
+              "Ref": "UsageTable28300137",
+            },
+            "USER_POOL_ID": {
+              "Ref": "UserPool6BA7E5F2",
+            },
+            "VECTOR_BUCKET_NAME": "chime-ai-vectors-123456789012",
+            "VECTOR_INDEX_NAME": "documents",
+          },
+        },
+        "FunctionName": "chime-ai-create-meeting",
+        "Handler": "index.handler",
+        "MemorySize": 256,
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaExecutionRoleD5C26073",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 30,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "CreateMeetingFunctionLogRetention199E8B8A": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "CreateMeetingFunctionE92C6381",
+              },
+            ],
+          ],
+        },
+        "RetentionInDays": 7,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::LogRetention",
+    },
+    "IngestDocumentDlqCE58432C": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "MessageRetentionPeriod": 1209600,
+        "QueueName": "chime-ai-ingest-document-dlq",
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "IngestDocumentDlqPolicy484110DF": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestDocumentDlqCE58432C",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "IngestDocumentDlqCE58432C",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "IngestDocumentFunction76101940": {
+      "DependsOn": [
+        "LambdaExecutionRoleDefaultPolicy6D69732F",
+        "LambdaExecutionRoleD5C26073",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "7cd50ca8342ce8d8740e16768aa7fd6467994b63823ac64270125aa32993e9c6.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "BEDROCK_AGENT_ALIAS_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgentAlias",
+                "AgentAliasId",
+              ],
+            },
+            "BEDROCK_AGENT_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgent",
+                "AgentId",
+              ],
+            },
+            "CONVERSATION_TABLE": {
+              "Ref": "ConversationTable75C14D21",
+            },
+            "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+            "INGEST_QUEUE_URL": {
+              "Ref": "IngestDocumentQueue0DA554E5",
+            },
+            "REGION": "ap-northeast-1",
+            "USAGE_TABLE": {
+              "Ref": "UsageTable28300137",
+            },
+            "USER_POOL_ID": {
+              "Ref": "UserPool6BA7E5F2",
+            },
+            "VECTOR_BUCKET_NAME": "chime-ai-vectors-123456789012",
+            "VECTOR_INDEX_NAME": "documents",
+          },
+        },
+        "FunctionName": "chime-ai-ingest-document",
+        "Handler": "index.handler",
+        "MemorySize": 256,
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaExecutionRoleD5C26073",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 10,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "IngestDocumentFunctionLogRetention66075472": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "IngestDocumentFunction76101940",
+              },
+            ],
+          ],
+        },
+        "RetentionInDays": 7,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::LogRetention",
+    },
+    "IngestDocumentQueue0DA554E5": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "QueueName": "chime-ai-ingest-document",
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "IngestDocumentDlqCE58432C",
+              "Arn",
+            ],
+          },
+          "maxReceiveCount": 3,
+        },
+        "VisibilityTimeout": 1800,
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "IngestDocumentQueuePolicyAA8C1C23": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestDocumentQueue0DA554E5",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "Queues": [
+          {
+            "Ref": "IngestDocumentQueue0DA554E5",
+          },
+        ],
+      },
+      "Type": "AWS::SQS::QueuePolicy",
+    },
+    "IngestDocumentWorkerFunctionD2650A75": {
+      "DependsOn": [
+        "LambdaExecutionRoleDefaultPolicy6D69732F",
+        "LambdaExecutionRoleD5C26073",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "d7cdd5138ce7df094d71677cc163e2492f280464f6d803b783eb7d2435b0badd.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "BEDROCK_AGENT_ALIAS_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgentAlias",
+                "AgentAliasId",
+              ],
+            },
+            "BEDROCK_AGENT_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgent",
+                "AgentId",
+              ],
+            },
+            "CONVERSATION_TABLE": {
+              "Ref": "ConversationTable75C14D21",
+            },
+            "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+            "INGEST_QUEUE_URL": {
+              "Ref": "IngestDocumentQueue0DA554E5",
+            },
+            "REGION": "ap-northeast-1",
+            "USAGE_TABLE": {
+              "Ref": "UsageTable28300137",
+            },
+            "USER_POOL_ID": {
+              "Ref": "UserPool6BA7E5F2",
+            },
+            "VECTOR_BUCKET_NAME": "chime-ai-vectors-123456789012",
+            "VECTOR_INDEX_NAME": "documents",
+          },
+        },
+        "FunctionName": "chime-ai-ingest-document-worker",
+        "Handler": "index.handler",
+        "MemorySize": 512,
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaExecutionRoleD5C26073",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 300,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "IngestDocumentWorkerFunctionLogRetention8BF93666": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "IngestDocumentWorkerFunctionD2650A75",
+              },
+            ],
+          ],
+        },
+        "RetentionInDays": 7,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::LogRetention",
+    },
+    "IngestDocumentWorkerFunctionSqsEventSourceTestStackIngestDocumentQueue3431AAF7B6C8C961": {
+      "Properties": {
+        "BatchSize": 1,
+        "EventSourceArn": {
+          "Fn::GetAtt": [
+            "IngestDocumentQueue0DA554E5",
+            "Arn",
+          ],
+        },
+        "FunctionName": {
+          "Ref": "IngestDocumentWorkerFunctionD2650A75",
+        },
+        "FunctionResponseTypes": [
+          "ReportBatchItemFailures",
+        ],
+      },
+      "Type": "AWS::Lambda::EventSourceMapping",
+    },
+    "LambdaExecutionRoleD5C26073": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "chime:CreateMeeting",
+                    "chime:DeleteMeeting",
+                    "chime:GetMeeting",
+                    "chime:CreateAttendee",
+                    "chime:DeleteAttendee",
+                    "chime:GetAttendee",
+                    "chime:StartMeetingTranscription",
+                    "chime:StopMeetingTranscription",
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*",
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "ChimePolicy",
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": "bedrock:InvokeAgent",
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "AiMeetingAgentAlias",
+                      "AgentAliasArn",
+                    ],
+                  },
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "AgentCorePolicy",
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": "bedrock:InvokeModel",
+                  "Effect": "Allow",
+                  "Resource": "arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0",
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "BedrockEmbeddingPolicy",
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": "polly:SynthesizeSpeech",
+                  "Effect": "Allow",
+                  "Resource": "*",
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "PollyPolicy",
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Query",
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "ConversationTable75C14D21",
+                        "Arn",
+                      ],
+                    },
+                    {
+                      "Fn::GetAtt": [
+                        "UsageTable28300137",
+                        "Arn",
+                      ],
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": [
+                              "UsageTable28300137",
+                              "Arn",
+                            ],
+                          },
+                          "/index/*",
+                        ],
+                      ],
+                    },
+                  ],
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "DynamoDBPolicy",
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "s3vectors:PutVectors",
+                    "s3vectors:QueryVectors",
+                    "s3vectors:GetVectors",
+                    "s3vectors:DeleteVectors",
+                    "s3vectors:ListVectors",
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*",
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "S3VectorsPolicy",
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "cognito-idp:AdminDeleteUser",
+                    "cognito-idp:AdminGetUser",
+                    "cognito-idp:AdminDisableUser",
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "UserPool6BA7E5F2",
+                      "Arn",
+                    ],
+                  },
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "CognitoAdminPolicy",
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": "sqs:SendMessage",
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "IngestDocumentQueue0DA554E5",
+                      "Arn",
+                    ],
+                  },
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "SqsSendPolicy",
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes",
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "IngestDocumentQueue0DA554E5",
+                      "Arn",
+                    ],
+                  },
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "SqsReceivePolicy",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LambdaExecutionRoleDefaultPolicy6D69732F": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "sqs:ReceiveMessage",
+                "sqs:ChangeMessageVisibility",
+                "sqs:GetQueueUrl",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestDocumentQueue0DA554E5",
+                  "Arn",
+                ],
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "LambdaExecutionRoleDefaultPolicy6D69732F",
+        "Roles": [
+          {
+            "Ref": "LambdaExecutionRoleD5C26073",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A": {
+      "DependsOn": [
+        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB",
+        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "2819175352ad1ce0dae768e83fc328fb70fb5f10b4a8ff0ccbcb791f02b0716d.zip",
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 900,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ],
+            ],
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "logs:PutRetentionPolicy",
+                "logs:DeleteRetentionPolicy",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB",
+        "Roles": [
+          {
+            "Ref": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "ManageDocumentsFunctionD46E51C2": {
+      "DependsOn": [
+        "LambdaExecutionRoleDefaultPolicy6D69732F",
+        "LambdaExecutionRoleD5C26073",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "d7abffbeffcce064e8ea1a0c2fb65df2f085f1d440bbd299ec3f059fc0a16a4e.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "BEDROCK_AGENT_ALIAS_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgentAlias",
+                "AgentAliasId",
+              ],
+            },
+            "BEDROCK_AGENT_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgent",
+                "AgentId",
+              ],
+            },
+            "CONVERSATION_TABLE": {
+              "Ref": "ConversationTable75C14D21",
+            },
+            "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+            "INGEST_QUEUE_URL": {
+              "Ref": "IngestDocumentQueue0DA554E5",
+            },
+            "REGION": "ap-northeast-1",
+            "USAGE_TABLE": {
+              "Ref": "UsageTable28300137",
+            },
+            "USER_POOL_ID": {
+              "Ref": "UserPool6BA7E5F2",
+            },
+            "VECTOR_BUCKET_NAME": "chime-ai-vectors-123456789012",
+            "VECTOR_INDEX_NAME": "documents",
+          },
+        },
+        "FunctionName": "chime-ai-manage-documents",
+        "Handler": "index.handler",
+        "MemorySize": 256,
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaExecutionRoleD5C26073",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 30,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "ManageDocumentsFunctionLogRetention65B2332C": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "ManageDocumentsFunctionD46E51C2",
+              },
+            ],
+          ],
+        },
+        "RetentionInDays": 7,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::LogRetention",
+    },
+    "S3VectorBucketCustomResourcePolicy173EB451": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3vectors:CreateVectorBucket",
+                "s3vectors:DeleteVectorBucket",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "S3VectorBucketCustomResourcePolicy173EB451",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "S3VectorBucketD4338310": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "S3VectorBucketCustomResourcePolicy173EB451",
+      ],
+      "Properties": {
+        "Create": "{"service":"S3Vectors","action":"CreateVectorBucket","parameters":{"vectorBucketName":"chime-ai-vectors-123456789012"},"physicalResourceId":{"id":"chime-ai-vectors-123456789012"},"ignoreErrorCodesMatching":"BucketAlreadyExists"}",
+        "Delete": "{"service":"S3Vectors","action":"DeleteVectorBucket","parameters":{"vectorBucketName":"chime-ai-vectors-123456789012"}}",
+        "InstallLatestAwsSdk": true,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::AWS",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "S3VectorIndex95EDD305": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "S3VectorIndexCustomResourcePolicy2AAD426E",
+      ],
+      "Properties": {
+        "Create": "{"service":"S3Vectors","action":"CreateIndex","parameters":{"vectorBucketName":"chime-ai-vectors-123456789012","indexName":"documents","dataType":"float32","dimension":1024,"distanceMetric":"cosine"},"physicalResourceId":{"id":"chime-ai-vectors-123456789012/documents"},"ignoreErrorCodesMatching":"IndexAlreadyExists"}",
+        "Delete": "{"service":"S3Vectors","action":"DeleteIndex","parameters":{"vectorBucketName":"chime-ai-vectors-123456789012","indexName":"documents"}}",
+        "InstallLatestAwsSdk": true,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::AWS",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "S3VectorIndexCustomResourcePolicy2AAD426E": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3vectors:CreateIndex",
+                "s3vectors:DeleteIndex",
+              ],
+              "Effect": "Allow",
+              "Resource": "*",
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "PolicyName": "S3VectorIndexCustomResourcePolicy2AAD426E",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Policy",
+    },
+    "UsageTable28300137": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "userId",
+            "AttributeType": "S",
+          },
+          {
+            "AttributeName": "sk",
+            "AttributeType": "S",
+          },
+          {
+            "AttributeName": "sessionId",
+            "AttributeType": "S",
+          },
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "GlobalSecondaryIndexes": [
+          {
+            "IndexName": "sessionId-index",
+            "KeySchema": [
+              {
+                "AttributeName": "sessionId",
+                "KeyType": "HASH",
+              },
+              {
+                "AttributeName": "sk",
+                "KeyType": "RANGE",
+              },
+            ],
+            "Projection": {
+              "ProjectionType": "ALL",
+            },
+          },
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "userId",
+            "KeyType": "HASH",
+          },
+          {
+            "AttributeName": "sk",
+            "KeyType": "RANGE",
+          },
+        ],
+        "TableName": "ChimeAiUsageRecords",
+      },
+      "Type": "AWS::DynamoDB::Table",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "UserManagementFunction2338B082": {
+      "DependsOn": [
+        "LambdaExecutionRoleDefaultPolicy6D69732F",
+        "LambdaExecutionRoleD5C26073",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "36c3d9266f6867edbdb2c6f5afa0fb312427644b2f53b22a5a1f054dbc1ed5ad.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "BEDROCK_AGENT_ALIAS_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgentAlias",
+                "AgentAliasId",
+              ],
+            },
+            "BEDROCK_AGENT_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgent",
+                "AgentId",
+              ],
+            },
+            "CONVERSATION_TABLE": {
+              "Ref": "ConversationTable75C14D21",
+            },
+            "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+            "INGEST_QUEUE_URL": {
+              "Ref": "IngestDocumentQueue0DA554E5",
+            },
+            "REGION": "ap-northeast-1",
+            "USAGE_TABLE": {
+              "Ref": "UsageTable28300137",
+            },
+            "USER_POOL_ID": {
+              "Ref": "UserPool6BA7E5F2",
+            },
+            "VECTOR_BUCKET_NAME": "chime-ai-vectors-123456789012",
+            "VECTOR_INDEX_NAME": "documents",
+          },
+        },
+        "FunctionName": "chime-ai-user-management",
+        "Handler": "index.handler",
+        "MemorySize": 256,
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaExecutionRoleD5C26073",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 30,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "UserManagementFunctionLogRetention72D115D7": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "UserManagementFunction2338B082",
+              },
+            ],
+          ],
+        },
+        "RetentionInDays": 7,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::LogRetention",
+    },
+    "UserPool6BA7E5F2": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "AccountRecoverySetting": {
+          "RecoveryMechanisms": [
+            {
+              "Name": "verified_email",
+              "Priority": 1,
+            },
+          ],
+        },
+        "AdminCreateUserConfig": {
+          "AllowAdminCreateUserOnly": false,
+        },
+        "AutoVerifiedAttributes": [
+          "email",
+        ],
+        "EmailVerificationMessage": "The verification code to your new account is {####}",
+        "EmailVerificationSubject": "Verify your new account",
+        "Policies": {
+          "PasswordPolicy": {
+            "MinimumLength": 8,
+            "RequireLowercase": true,
+            "RequireNumbers": true,
+            "RequireSymbols": true,
+            "RequireUppercase": true,
+          },
+        },
+        "Schema": [
+          {
+            "Mutable": true,
+            "Name": "email",
+            "Required": true,
+          },
+        ],
+        "SmsVerificationMessage": "The verification code to your new account is {####}",
+        "UserPoolName": "chime-ai-meeting-users",
+        "UsernameAttributes": [
+          "email",
+        ],
+        "VerificationMessageTemplate": {
+          "DefaultEmailOption": "CONFIRM_WITH_CODE",
+          "EmailMessage": "The verification code to your new account is {####}",
+          "EmailSubject": "Verify your new account",
+          "SmsMessage": "The verification code to your new account is {####}",
+        },
+      },
+      "Type": "AWS::Cognito::UserPool",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "UserPoolClient2F5918F7": {
+      "Properties": {
+        "AllowedOAuthFlows": [
+          "implicit",
+          "code",
+        ],
+        "AllowedOAuthFlowsUserPoolClient": true,
+        "AllowedOAuthScopes": [
+          "profile",
+          "phone",
+          "email",
+          "openid",
+          "aws.cognito.signin.user.admin",
+        ],
+        "CallbackURLs": [
+          "https://example.com",
+        ],
+        "ClientName": "chime-ai-meeting-web",
+        "ExplicitAuthFlows": [
+          "ALLOW_USER_PASSWORD_AUTH",
+          "ALLOW_USER_SRP_AUTH",
+          "ALLOW_REFRESH_TOKEN_AUTH",
+        ],
+        "GenerateSecret": false,
+        "SupportedIdentityProviders": [
+          "COGNITO",
+        ],
+        "UserPoolId": {
+          "Ref": "UserPool6BA7E5F2",
+        },
+      },
+      "Type": "AWS::Cognito::UserPoolClient",
+    },
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                  ],
+                  {
+                    "Ref": "BootstrapVersion",
+                  },
+                ],
+              },
+            ],
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.",
+        },
+      ],
+    },
+  },
+}
+`;
