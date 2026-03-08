@@ -28,6 +28,10 @@
 - Bedrock AgentCore の CDK 定義 (L1 Construct) と Lambda からの呼び出し方
 - S3 Vectors の概要と AwsCustomResource を使った CDK プロビジョニング
 - RAG パイプラインの実装 (Titan Embeddings V2 + S3 Vectors + SQS 非同期処理)
+- Cognito Admin API を使ったユーザー管理 (AdminGetUser / AdminDeleteUser)
+- 画面共有フレームの Canvas キャプチャと AgentCore Vision への送信
+- 無音検知 + 送信確認ダイアログによる音声認識 UX
+- AI アバターコンポーネント (動画 + CSS AR エフェクト)
 - CodeCommit + CodePipeline + Amplify による完全自動化 CI/CD パイプライン
 - Vitest 単体テスト・Playwright E2E テスト・ESLint/Prettier によるコード品質管理
 - iPad/iOS 対応・レスポンシブ設計の考慮点
@@ -947,7 +951,118 @@ npm run build
 
 ---
 
-## 7. AWS CDK でのインフラ管理
+## 7. ユーザー管理
+
+### Lambda: user-management
+
+Cognito ユーザー情報の取得とアカウント削除を担う Lambda です。Cognito Admin API を使用するため `cognito-idp:AdminGetUser` / `cognito-idp:AdminDeleteUser` 権限が必要です。
+
+```typescript
+// cdk/lambda/user-management/index.ts
+import {
+  CognitoIdentityProviderClient,
+  AdminGetUserCommand,
+  AdminDeleteUserCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
+import { DynamoDBDocumentClient, QueryCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+
+// GET /users — Cognito からユーザー情報を取得
+if (event.httpMethod === 'GET') {
+  const result = await cognitoClient.send(
+    new AdminGetUserCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: userId,  // Cognito sub (UUID)
+    }),
+  );
+  const email = result.UserAttributes?.find((a) => a.Name === 'email')?.Value ?? '';
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      userId, email,
+      status: result.UserStatus,
+      createdAt: result.UserCreateDate?.toISOString(),
+    }),
+  };
+}
+
+// DELETE /users — アカウント削除 + DynamoDB データ削除
+if (event.httpMethod === 'DELETE') {
+  // 1. Cognito ユーザーを削除 (サーバー側のセッションを無効化)
+  await cognitoClient.send(
+    new AdminDeleteUserCommand({ UserPoolId: USER_POOL_ID, Username: userId }),
+  );
+
+  // 2. DynamoDB の利用記録を一括削除 (BatchWriteCommand で 25 件ずつ)
+  const records = await docClient.send(
+    new QueryCommand({ TableName: USAGE_TABLE, KeyConditionExpression: 'userId = :uid',
+      ExpressionAttributeValues: { ':uid': userId } }),
+  );
+  const items = records.Items ?? [];
+  for (let i = 0; i < items.length; i += 25) {
+    await docClient.send(new BatchWriteCommand({
+      RequestItems: {
+        [USAGE_TABLE]: items.slice(i, i + 25).map((item) => ({
+          DeleteRequest: { Key: { userId: item.userId, sk: item.sk } },
+        })),
+      },
+    }));
+  }
+  return { statusCode: 200, body: JSON.stringify({ message: 'アカウントを削除しました' }) };
+}
+```
+
+### useAuth: deleteAccount
+
+フロントエンドの `useAuth` フックは `DELETE /users` を呼び出し、成功後に Amplify の `signOut()` でクライアント側セッションをクリアします。
+
+```typescript
+// frontend/src/hooks/useAuth.ts
+const deleteAccount = useCallback(async () => {
+  const token = await getIdToken();
+  const response = await fetch(`${API_URL}/users`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error ?? 'アカウント削除に失敗しました');
+  }
+  await signOut();   // ⚠️ AdminDeleteUser はサーバー側のみ削除
+  setUser(null);     //    フロントエンドで明示的に signOut() を呼ぶ必要がある
+  setStatus('unauthenticated');
+}, [getIdToken]);
+```
+
+:::message alert
+**`AdminDeleteUser` 後は必ず `signOut()` を呼ぶ**
+
+`AdminDeleteUser` はサーバー側の Cognito ユーザーを削除しますが、ブラウザの Amplify セッション (ID トークン・リフレッシュトークン) はそのまま残ります。削除後に `signOut()` を呼ばないと、トークンが有効な間はログイン状態が続いてしまいます。
+:::
+
+### UserProfile コンポーネント: 誤操作防止の確認フロー
+
+アカウント削除は取り消しができないため、`"DELETE"` という文字列を手入力させる確認フローを実装しています。
+
+```typescript
+// frontend/src/components/UserProfile.tsx
+const [showConfirm, setShowConfirm] = useState(false);
+const [confirmText, setConfirmText] = useState('');
+
+// 第 1 段階: "アカウントを削除する" ボタン → 確認ボックスを表示
+// 第 2 段階: "DELETE" と手入力 → "完全に削除する" ボタンが有効化
+<button
+  onClick={handleDeleteAccount}
+  disabled={confirmText !== 'DELETE' || deleting}
+>
+  {deleting ? '削除中...' : '完全に削除する'}
+</button>
+```
+
+削除完了後、`useAuth.deleteAccount()` → `signOut()` の順で処理されるため、ユーザーは自動的にログイン画面へ遷移します。
+
+---
+
+## 8. AWS CDK でのインフラ管理
 
 ### RemovalPolicy.DESTROY を選ぶ理由
 
@@ -1172,7 +1287,7 @@ while manually deployed branch still exists.
 
 ---
 
-## 8. フロントエンド (React + Vite)
+## 9. フロントエンド (React + Vite)
 
 ### iOS 対応: dvh で Viewport 高さを正しく扱う
 
@@ -1241,9 +1356,142 @@ const tick = () => {
 requestAnimationFrame(tick);
 ```
 
+### 画面共有フレームのキャプチャ (useScreenShare)
+
+`useScreenShare` フックは `getDisplayMedia` でスクリーン共有ストリームを取得し、`captureFrame()` で現在フレームを JPEG Base64 に変換します。この Base64 文字列が `/ai-chat` API の `frame` フィールドに渡され、Lambda 経由で AgentCore の Vision 入力になります。
+
+```typescript
+// frontend/src/hooks/useScreenShare.ts
+const captureFrame = useCallback((maxWidth = 1280, quality = 0.65): string | null => {
+  const video = screenVideoRef.current;
+  if (!video || !streamRef.current || video.videoWidth === 0) return null;
+
+  // アスペクト比を保ちながら最大幅 1280px に縮小 (API ペイロード削減)
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  const w = Math.round(video.videoWidth * scale);
+  const h = Math.round(video.videoHeight * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext('2d')!.drawImage(video, 0, 0, w, h);
+
+  // "data:image/jpeg;base64," プレフィックスを除いた Base64 文字列を返す
+  return canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null;
+}, []);
+```
+
+**ポイント:**
+- `quality: 0.65` は画質とペイロードサイズのバランス点。スクリーンショットは写真より圧縮率が高いため 65% でも十分な解像度が保たれます
+- Canvas に `drawImage` することでメモリ上の中間バッファが不要になります
+- `videoWidth === 0` チェックはストリーム開始直後に呼ばれた場合のガードです
+
+:::message alert
+**`<video>` は常に DOM に存在させること**
+
+`startScreenShare()` が呼ばれた時点で `screenVideoRef.current` が `null` だと、ストリームを `srcObject` に接続できません。`<video>` を条件付きレンダリングで非表示/表示切り替えすると ref が null になるケースがあります。`display: none` で常に DOM に存在させておくのが安全です。
+:::
+
+### 無音検知 → 送信確認ダイアログ
+
+音声認識後、ユーザーが 3 秒間無音だと「送信確認ダイアログ」が表示されます。ユーザーは認識テキストを **編集してから送信** / **続けて話す** / **破棄** の 3 択を選べます。
+
+```
+[Transcribe / Web Speech API が発話を検知]
+         ↓
+  transcriptBuffer に積む
+         ↓ (3 秒無音で debounce 発火)
+  showSilenceConfirm = true → ダイアログ表示
+         ↓
+  ユーザーが選択:
+  ├─ [AIに送る]     → confirmSend(editedText) → sendTranscript() を呼ぶ
+  ├─ [続けて話す]   → confirmContinue() → buffer を保持して認識継続
+  └─ [破棄]         → cancelSend() → buffer をクリア
+```
+
+```typescript
+// frontend/src/components/MeetingRoom.tsx (ダイアログ部分)
+{showSilenceConfirm && (
+  <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ background: '#1a1a2e', borderRadius: 16, padding: '24px 20px', maxWidth: 400 }}>
+      <div>🎤 3秒間の無音を検知しました</div>
+      {/* 認識テキストをそのまま編集可能にする */}
+      <textarea value={editedText} onChange={(e) => setEditedText(e.target.value)} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={() => confirmSend(editedText)} disabled={!editedText.trim()}>
+          AIに送る
+        </button>
+        <button onClick={confirmContinue}>続けて話す</button>
+        <button onClick={cancelSend}>破棄</button>
+      </div>
+    </div>
+  </div>
+)}
+```
+
+認識精度は完璧ではないため「認識されたテキストを修正してから送信できる」UX は特に専門用語や固有名詞が多い業務会議で有効です。
+
+### AI アバター (AIParticipant コンポーネント)
+
+会議画面の AI 参加者枠には `aibot.mp4` の動画をループ再生する `AIParticipant` コンポーネントを配置しています。状態に応じて AR 風のエフェクトが変化します。
+
+```typescript
+// frontend/src/components/AIParticipant.tsx
+export function AIParticipant({ isSpeaking, isProcessing, aiText }: AIParticipantProps) {
+  // 状態に応じてカラーテーマを切り替え
+  const statusColor = isProcessing ? '#f59e0b'   // 解析中: 琥珀色
+                    : isSpeaking   ? '#10b981'   // 応答中: エメラルド
+                    :                '#00bfff';  // 待機中: シアン
+
+  return (
+    <div style={{ animation: isSpeaking ? 'speaking-pulse 1.2s ease-out infinite' : undefined }}>
+      {/* AI アバター動画 — 背景映像として全面表示 */}
+      <video src="/aibot.mp4" autoPlay loop muted playsInline
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+
+      {/* AR コーナーブラケット (4 隅) */}
+      <div style={{ borderTop: `2px solid ${statusColor}cc`, borderLeft: `2px solid ${statusColor}cc` }} />
+
+      {/* スキャンライン (解析中のみ表示) */}
+      {isProcessing && (
+        <div style={{ animation: 'scan 2s linear infinite', background: `linear-gradient(90deg, transparent, ${statusColor}cc, transparent)` }} />
+      )}
+
+      {/* ステータスバッジ: 待機中 / 解析中... / 応答中 */}
+      <div>{isProcessing ? '解析中...' : isSpeaking ? '応答中' : '待機中'}</div>
+
+      {/* 最新 AI 発言テキスト (3 行まで表示) */}
+      {aiText && <div>{aiText}</div>}
+    </div>
+  );
+}
+```
+
+| 状態 | `isSpeaking` | `isProcessing` | 表示 |
+|------|-------------|---------------|------|
+| 待機中 | false | false | シアンのブラケット |
+| 解析中 | false | true | 琥珀色 + スキャンライン |
+| 応答中 | true | false | エメラルド + パルスアニメーション |
+
+:::message
+**jsdom での autoPlay 属性テスト**
+
+`<video autoPlay>` は React が JS プロパティを設定するため、jsdom 環境では `hasAttribute('autoplay')` が `false` になるケースがあります。テストでは HTML 属性ではなく **JS プロパティ** を確認するのが正確です。
+
+```typescript
+// ❌ 失敗することがある
+expect(video?.hasAttribute('autoplay')).toBe(true);
+
+// ✅ 確実
+expect((video as HTMLVideoElement)?.loop).toBe(true);
+expect((video as HTMLVideoElement)?.muted).toBe(true);
+```
+:::
+
 ---
 
-## 9. テスト戦略: Vitest + Playwright MCP
+## 10. テスト戦略: Vitest + Playwright MCP
 
 CI/CD パイプラインの品質ゲートとして、単体テスト・E2E テスト・静的解析を整備しました。
 
@@ -1463,7 +1711,7 @@ export default tseslint.config(
 
 ---
 
-## 10. ハマったポイントまとめ
+## 11. ハマったポイントまとめ
 
 実装中に遭遇したつまずきポイントを整理します。同じシステムを構築する方の参考になれば幸いです。
 
@@ -1490,7 +1738,7 @@ export default tseslint.config(
 
 ---
 
-## 11. フロントエンドセキュリティ: Amplify のエンタープライズ対応
+## 12. フロントエンドセキュリティ: Amplify のエンタープライズ対応
 
 エンタープライズ用途で導入する際、バックエンド（API Gateway + Cognito）の保護に加え、フロントエンドをホストするインフラのセキュリティ要件も問われます。Amplify Hosting は直近のアップデートにより、これらの要件に対応できるようになっています。
 
@@ -1602,8 +1850,8 @@ Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2025 年時点で最
 | 領域 | 技術スタック |
 |------|------------|
 | **インフラ (IaC)** | AWS CDK (TypeScript)、CodeCommit + CodePipeline |
-| **バックエンド** | Lambda、Bedrock AgentCore、S3 Vectors + SQS、Cognito |
-| **フロントエンド** | React + Vite、Chime SDK JS、Amplify Hosting |
+| **バックエンド** | Lambda、Bedrock AgentCore、S3 Vectors + SQS、Cognito (Admin API) |
+| **フロントエンド** | React + Vite、Chime SDK JS、画面共有 Canvas キャプチャ、Amplify Hosting |
 | **セキュリティ** | Cognito JWT 認証、CSP / HSTS、Amplify WAF 統合 |
 | **CI/CD & 品質保証** | Vitest、Playwright、ESLint (`exhaustive-deps: error`)、Prettier |
 
