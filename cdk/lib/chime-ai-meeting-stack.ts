@@ -306,6 +306,16 @@ export class ChimeAiMeetingStack extends cdk.Stack {
             }),
           ],
         }),
+        // Converse API (Vision): 画面フレーム解析に使用
+        // InvokeAgent の sessionState.files は JPEG 非対応のため Converse API で直接解析する
+        BedrockVisionPolicy: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              actions: ['bedrock:Converse'],
+              resources: ['*'],
+            }),
+          ],
+        }),
         PollyPolicy: new iam.PolicyDocument({
           statements: [
             new iam.PolicyStatement({

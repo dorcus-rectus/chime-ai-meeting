@@ -2,7 +2,7 @@ import {
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
 } from '@aws-sdk/client-bedrock-agent-runtime';
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { BedrockRuntimeClient, InvokeModelCommand, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
@@ -13,6 +13,9 @@ const REGION = process.env.REGION ?? 'ap-northeast-1';
 const AGENT_ID = process.env.BEDROCK_AGENT_ID!;
 const AGENT_ALIAS_ID = process.env.BEDROCK_AGENT_ALIAS_ID!;
 const EMBEDDING_MODEL_ID = process.env.EMBEDDING_MODEL_ID ?? 'amazon.titan-embed-text-v2:0';
+// 画面フレーム解析用モデル: AgentCore と同じ Claude Sonnet 4.6
+// Converse API は JPEG 画像を直接受け付けるため sessionState.files の代替として使用
+const VISION_MODEL_ID = 'jp.anthropic.claude-sonnet-4-6';
 const USAGE_TABLE = process.env.USAGE_TABLE!;
 const VECTOR_BUCKET_NAME = process.env.VECTOR_BUCKET_NAME!;
 const VECTOR_INDEX_NAME = process.env.VECTOR_INDEX_NAME ?? 'documents';
@@ -81,45 +84,59 @@ async function retrieveContext(queryText: string, topK = 3): Promise<string> {
 }
 
 // -------------------------------------------------------
+// Bedrock Converse API でスクリーンフレームを解析 (Vision)
+//
+// InvokeAgent の sessionState.files は JPEG 画像をサポートしない
+// (CHAT use case で受け付けるのはテキスト系ファイルのみ)。
+// Converse API はマルチモーダル入力に対応しているため、
+// こちらで画像解析を行いテキスト結果を AgentCore に渡す。
+// -------------------------------------------------------
+async function analyzeScreenFrame(frameBase64: string, userQuestion: string): Promise<string> {
+  const question = userQuestion.trim() || 'この画面について説明してください';
+  const response = await bedrockClient.send(
+    new ConverseCommand({
+      modelId: VISION_MODEL_ID,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              image: {
+                format: 'jpeg',
+                source: { bytes: Buffer.from(frameBase64, 'base64') },
+              },
+            },
+            {
+              text: `次の質問に、画面の内容を踏まえて日本語で回答してください: ${question}`,
+            },
+          ],
+        },
+      ],
+      inferenceConfig: { maxTokens: 1000 },
+    }),
+  );
+  const content = response.output?.message?.content ?? [];
+  return content
+    .filter((b): b is { text: string } => typeof (b as Record<string, unknown>).text === 'string')
+    .map((b) => b.text)
+    .join('')
+    .trim() || 'すみません、画面を分析できませんでした。';
+}
+
+// -------------------------------------------------------
 // Bedrock AgentCore Runtime を呼び出して AI 応答を生成
 //
-// frameBase64 が渡された場合は sessionState.files に JPEG を添付し、
-// AgentCore (Claude Sonnet 4.6 Vision) が画面を直接解析して回答する。
 // AgentCore はセッション ID で会話履歴を自動管理するため、
 // DynamoDB への会話履歴の読み書きが不要になります。
+// 画像解析は Converse API で行い、テキスト結果のみをここへ渡す。
 // -------------------------------------------------------
-async function invokeAgent(
-  sessionId: string,
-  inputText: string,
-  frameBase64?: string,
-): Promise<string> {
+async function invokeAgent(sessionId: string, inputText: string): Promise<string> {
   const command = new InvokeAgentCommand({
     agentId: AGENT_ID,
     agentAliasId: AGENT_ALIAS_ID,
-    sessionId,          // AgentCore がこの ID でセッションを識別・管理
+    sessionId,
     inputText,
     enableTrace: false,
-    // 画面共有フレームが存在する場合はマルチモーダル入力として渡す
-    // useCase: 'CHAT' により会話コンテキスト内で画像を参照可能
-    ...(frameBase64
-      ? {
-          sessionState: {
-            files: [
-              {
-                name: 'screen-capture.jpg',
-                source: {
-                  byteContent: {
-                    data: Buffer.from(frameBase64, 'base64'),
-                    mediaType: 'image/jpeg',
-                  },
-                  sourceType: 'BYTE_CONTENT',
-                },
-                useCase: 'CHAT',
-              },
-            ],
-          },
-        }
-      : {}),
   });
 
   const response = await agentClient.send(command);
@@ -204,25 +221,31 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // --- 1. RAG: S3 Vectors で関連ドキュメントを検索 ---
-    // 画面共有フレームがある場合は RAG をスキップ (画像解析を優先)
-    const ragContext = frame ? '' : await retrieveContext(text);
+    // --- 1. Vision または RAG でコンテキストを取得 ---
+    // 画面フレームあり: Converse API (Vision) で画像解析 → テキスト結果を AgentCore に渡す
+    //   ※ InvokeAgent の sessionState.files は JPEG 非対応のため Converse API を使用
+    // 画面フレームなし: S3 Vectors で関連ドキュメントを RAG 検索
+    let frameAnalysis = '';
+    let ragContext = '';
+    if (frame) {
+      frameAnalysis = await analyzeScreenFrame(frame, text);
+    } else {
+      ragContext = await retrieveContext(text);
+    }
 
-    // inputText の組み立て:
-    //   - 画面共有あり: 画面フレームはマルチモーダルで渡すため、テキストで「画面を見ながら回答して」と指示
-    //   - RAG コンテキストあり: 参考情報を付加
+    // inputText の組み立て (XML タグでユーザー入力を分離 → プロンプトインジェクション対策):
+    //   - 画面共有あり: Converse で解析した内容 + ユーザー発話
+    //   - RAG コンテキストあり: 参考情報 + ユーザー発話
     //   - それ以外: ユーザー発話のみ
-    // XML タグでユーザー入力を分離 → プロンプトインジェクション対策
-    const inputText = frame
-      ? `共有中の画面フレームを確認しながら、以下のユーザーの発言に日本語で答えてください。\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
+    const inputText = frameAnalysis
+      ? `[画面共有の解析結果]\n${frameAnalysis}\n\nユーザーの発言:\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
       : ragContext
         ? `[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言を元に回答してください。\n<user_input>\n${text}\n</user_input>`
         : `<user_input>\n${text}\n</user_input>`;
 
-    // --- 2. Bedrock AgentCore Runtime でAI 応答を生成 ---
+    // --- 2. Bedrock AgentCore Runtime で AI 応答を生成 ---
     // sessionId = Chime MeetingId (UUID形式) → AgentCore がセッション単位で会話履歴を管理
-    // frame が存在する場合は sessionState.files 経由でマルチモーダル送信
-    const aiText = await invokeAgent(sessionId, inputText, frame);
+    const aiText = await invokeAgent(sessionId, inputText);
 
     // --- 3. Polly で音声合成 ---
     const pollyResponse = await pollyClient.send(
@@ -244,7 +267,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       userMessage: text,
       aiResponse: aiText,
       ragUsed: ragContext.length > 0,
-      frameAnalyzed: !!frame,
+      frameAnalyzed: frameAnalysis.length > 0,
     }).catch((err) => console.error('利用記録保存エラー:', err));
 
     return {
