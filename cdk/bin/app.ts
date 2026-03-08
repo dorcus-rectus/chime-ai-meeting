@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Aspects, Tags } from 'aws-cdk-lib';
 import { AwsSolutionsChecks, NagSuppressions } from 'cdk-nag';
 import { ChimeAiMeetingStack } from '../lib/chime-ai-meeting-stack';
+import { CicdStack } from '../lib/cicd-stack';
 
 const app = new cdk.App();
 
@@ -86,3 +87,16 @@ NagSuppressions.addStackSuppressions(stack, [
       '(Cognito の MFA 設定は userPool に mfa: cognito.Mfa.REQUIRED を追加することで対応可能)',
   },
 ]);
+
+// -------------------------------------------------------
+// CI/CD スタック (CodeCommit + CodePipeline + CodeBuild)
+// 初回・更新時のみ手動でデプロイ:
+//   npx cdk deploy CicdStack
+// -------------------------------------------------------
+new CicdStack(app, 'CicdStack', {
+  env: {
+    region: 'ap-northeast-1',
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+  },
+  description: 'CI/CD パイプライン (CodeCommit → CodePipeline → deploy.sh)',
+});
