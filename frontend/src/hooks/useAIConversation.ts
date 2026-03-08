@@ -14,12 +14,30 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  // iOS/Android 対応: AudioContext で完全メモリ再生
+  // new Audio().play() は iOS では非ユーザージェスチャー時に失敗する
+  // AudioContext は一度ユーザージェスチャーでアンロックすれば以降は自由に使える
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+  /** マイクボタンや会議開始ボタンのクリック時に呼び出してAudioContextをアンロック */
+  const unlockAudio = useCallback(() => {
+    if (!audioContextRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      audioContextRef.current = new AudioCtx();
+    }
+    if (audioContextRef.current.state === 'suspended') {
+      void audioContextRef.current.resume();
+    }
+  }, []);
 
   const stopSpeaking = useCallback(() => {
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
+    if (audioSourceRef.current) {
+      try { audioSourceRef.current.stop(); } catch { /* 既に停止中 */ }
+      audioSourceRef.current = null;
     }
     setIsSpeaking(false);
   }, []);
@@ -28,25 +46,52 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
     (base64Audio: string): Promise<void> => {
       return new Promise((resolve) => {
         stopSpeaking();
+
+        const ctx = audioContextRef.current;
+        if (!ctx) {
+          // AudioContext 未初期化の場合は無音で継続 (unlockAudio が呼ばれていない)
+          console.warn('AudioContext が初期化されていません。unlockAudio() を先に呼んでください。');
+          resolve();
+          return;
+        }
+
+        setIsSpeaking(true);
+
+        // Base64 → Uint8Array → ArrayBuffer
         const binary = atob(base64Audio);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], { type: 'audio/mp3' });
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        currentAudioRef.current = audio;
-        setIsSpeaking(true);
-        audio.play().catch(console.error);
-        const cleanup = () => {
-          URL.revokeObjectURL(url);
-          currentAudioRef.current = null;
-          setIsSpeaking(false);
-          resolve();
-        };
-        audio.onended = cleanup;
-        audio.onerror = cleanup;
+        // slice(0) でコピーを作成: decodeAudioData は ArrayBuffer の所有権を取得するため
+        const arrayBuffer = bytes.buffer.slice(0);
+
+        // MP3 をデコードして BufferSource で再生
+        // AudioContext 経由のため iOS/Android でも非ユーザージェスチャー時に再生可能
+        ctx.decodeAudioData(arrayBuffer)
+          .then((audioBuffer) => {
+            // 再生前に再度停止チェック (decodeAudioData は非同期)
+            if (!audioSourceRef.current && !isSpeaking) {
+              // stopSpeaking が呼ばれていたらスキップ
+            }
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+            audioSourceRef.current = source;
+
+            source.onended = () => {
+              audioSourceRef.current = null;
+              setIsSpeaking(false);
+              resolve();
+            };
+            source.start(0);
+          })
+          .catch((err) => {
+            console.error('音声デコードエラー:', err);
+            setIsSpeaking(false);
+            resolve();
+          });
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [stopSpeaking],
   );
 
@@ -106,8 +151,6 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
 
   /**
    * チャット入力から手動で送信 (添付ファイル対応)
-   * - 画像ファイル: frame フィールド経由で AgentCore Vision に送信
-   * - テキストファイル: 本文にインライン展開 (先頭 3000 文字)
    */
   const sendMessage = useCallback(
     async (text: string, attachment?: FileAttachment) => {
@@ -119,7 +162,6 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
           frameBase64 = attachment.base64;
           if (!effectiveText) effectiveText = 'この画像について教えてください';
         } else {
-          // テキストファイル: 内容を本文に付加
           const snippet = attachment.content.slice(0, 3000);
           effectiveText = effectiveText
             ? `${effectiveText}\n\n[添付: ${attachment.name}]\n${snippet}`
@@ -146,6 +188,7 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
     isProcessing,
     isSpeaking,
     error,
+    unlockAudio,
     sendTranscript,
     sendMessage,
     clearConversation,

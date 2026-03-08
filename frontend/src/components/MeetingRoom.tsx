@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import { useRef, useState, useEffect, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { useMeeting, DUMMY_DEVICE_ID } from '../hooks/useMeeting';
 import { useAIConversation } from '../hooks/useAIConversation';
 import { useScreenShare } from '../hooks/useScreenShare';
@@ -93,29 +93,63 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
   // 画面共有フック
   const { isSharing, error: screenShareError, screenVideoRef, startScreenShare, stopScreenShare, captureFrame } = useScreenShare();
 
-  // 会議フック
+  // 会議フック (meetingId を先に取得するため先に呼ぶ)
+  // sendTranscript は後続の useAIConversation で定義されるが、
+  // onTranscript は ref 経由で参照するため呼び出し時に最新のものが使われる
   const {
     status, meetingId, isMuted, isVideoOn, isDummyCamera,
     videoDevices, selectedDeviceId, resolution,
     localVideoRef, audioRef, errorMessage,
+    pendingText, showSilenceConfirm,
     startMeeting, endMeeting, toggleMute, toggleVideo,
     changeCamera, changeResolution,
     startContentShare, stopContentShare,
+    confirmSend, confirmContinue,
+    pauseTranscription, resumeTranscription,
   } = useMeeting((transcript) => {
     const frame = isSharing ? captureFrame() : null;
+    // sendTranscript は下で定義されるが、この callback は呼ばれる時点では定義済み
     sendTranscript(transcript, frame ?? undefined);
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   });
 
   // AI 会話フック
-  const { messages, aiText, isProcessing, isSpeaking, error, sendTranscript, sendMessage } = useAIConversation({
+  const {
+    messages, aiText, isProcessing, isSpeaking, error,
+    unlockAudio, sendTranscript, sendMessage,
+  } = useAIConversation({
     sessionId: meetingId,
     getIdToken: auth.getIdToken,
   });
 
+  // AI 発話中は音声認識を停止し、終了後に再開
+  useEffect(() => {
+    if (isSpeaking) {
+      pauseTranscription();
+    } else {
+      resumeTranscription();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSpeaking]);
+
+  // pendingText が更新されたらチャットを最下部にスクロール
+  useEffect(() => {
+    if (pendingText) {
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    }
+  }, [pendingText]);
+
   const handleStartMeeting = async () => {
+    // iOS で AudioContext をアンロック (ユーザージェスチャー内で呼ぶ必要がある)
+    unlockAudio();
     const token = await auth.getIdToken();
     await startMeeting(token);
+  };
+
+  // ミュートボタン: AudioContext のアンロックも兼ねる
+  const handleToggleMute = () => {
+    unlockAudio();
+    toggleMute();
   };
 
   const handleToggleScreenShare = async () => {
@@ -309,7 +343,7 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
 
           {/* チャットメッセージ一覧 */}
           <div style={s.chatArea}>
-            {messages.length === 0 ? (
+            {messages.length === 0 && !pendingText ? (
               <div style={s.chatEmpty}>
                 話しかけるか、下のチャットに入力してください<br />
                 📎 ファイルを添付して AI に分析させることもできます
@@ -318,10 +352,25 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
             ) : (
               messages.map((msg, i) => <ChatBubble key={i} msg={msg} />)
             )}
+            {/* 音声認識中のペンディングテキスト */}
+            {pendingText && !showSilenceConfirm && (
+              <div style={{ alignSelf: 'flex-end' }}>
+                <div style={{ ...s.bubble, background: 'rgba(102,126,234,0.12)', borderBottomRightRadius: 2, color: '#c0c0e0', fontSize: 12, fontStyle: 'italic', border: '1px dashed rgba(102,126,234,0.3)' }}>
+                  🎤 {pendingText}
+                </div>
+              </div>
+            )}
             {isProcessing && (
               <div style={{ alignSelf: 'flex-start' }}>
                 <div style={{ ...s.bubble, background: 'rgba(55,55,80,0.8)', color: '#a78bfa', fontSize: 11 }}>
                   {isSharing ? '🖥️ 画面を解析中...' : 'AI が考え中...'}
+                </div>
+              </div>
+            )}
+            {isSpeaking && (
+              <div style={{ alignSelf: 'flex-start' }}>
+                <div style={{ ...s.bubble, background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: 11 }}>
+                  🔊 AI が話しています...
                 </div>
               </div>
             )}
@@ -447,7 +496,7 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
       <div style={s.controls}>
         <button
           style={{ ...s.btn, background: isMuted ? '#ef4444' : '#2a2a4a', color: '#fff' }}
-          onClick={toggleMute}
+          onClick={handleToggleMute}
           title={isMuted ? 'ミュート解除' : 'ミュート'}
         >
           {isMuted ? '🔇' : '🎤'}
@@ -482,6 +531,56 @@ export function MeetingRoom({ auth, onOpenProfile }: Props) {
       </div>
 
       <audio ref={audioRef as RefObject<HTMLAudioElement>} style={{ display: 'none' }} />
+
+      {/* ─── 3秒無音: 送信確認ダイアログ ───────────────────────────────────────── */}
+      {showSilenceConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 16px',
+        }}>
+          <div style={{
+            background: '#1a1a2e', border: '1px solid #3b3b6a',
+            borderRadius: 16, padding: '24px 20px', maxWidth: 380, width: '100%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', marginBottom: 10 }}>
+              🎤 3秒間の無音を検知しました
+            </div>
+            {/* 認識テキストのプレビュー */}
+            <div style={{
+              background: 'rgba(102,126,234,0.1)', border: '1px solid rgba(102,126,234,0.25)',
+              borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#e0e0e0',
+              lineHeight: 1.6, marginBottom: 16, maxHeight: 120, overflowY: 'auto',
+            }}>
+              {pendingText}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={confirmSend}
+                style={{
+                  flex: 1, background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                  color: '#fff', border: 'none', borderRadius: 10,
+                  padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                AIに送る
+              </button>
+              <button
+                onClick={confirmContinue}
+                style={{
+                  flex: 1, background: '#2a2a4a', color: '#a0a0c0',
+                  border: '1px solid #3b3b6a', borderRadius: 10,
+                  padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                続けて話す
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

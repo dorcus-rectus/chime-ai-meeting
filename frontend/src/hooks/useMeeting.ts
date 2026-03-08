@@ -29,6 +29,10 @@ export interface UseMeetingReturn {
   localVideoRef: React.RefObject<HTMLVideoElement | null>;
   audioRef: React.RefObject<HTMLAudioElement | null>;
   errorMessage: string;
+  /** 確定済みの未送信テキスト (3秒無音まで蓄積) */
+  pendingText: string;
+  /** 3秒無音を検知したとき true: 「送信 or 続ける」確認UIを表示 */
+  showSilenceConfirm: boolean;
   startMeeting: (idToken: string) => Promise<void>;
   endMeeting: () => void;
   toggleMute: () => void;
@@ -37,6 +41,14 @@ export interface UseMeetingReturn {
   changeResolution: (width: number, height: number) => Promise<void>;
   startContentShare: (stream: MediaStream) => Promise<void>;
   stopContentShare: () => void;
+  /** 「AIに送る」: pendingText を onTranscript に渡し、バッファをクリア */
+  confirmSend: () => void;
+  /** 「続ける」: ダイアログを閉じて音声認識を再開 */
+  confirmContinue: () => void;
+  /** AI が話している間など、音声認識を一時停止 */
+  pauseTranscription: () => void;
+  /** pauseTranscription 後に認識を再開 */
+  resumeTranscription: () => void;
 }
 
 /** グリッド柄のダミーカメラ MediaStream をキャンバスから生成 */
@@ -82,50 +94,128 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [resolution, setResolution] = useState({ width: 1280, height: 720 });
+  /** 3秒無音まで蓄積する確定済みテキスト */
+  const [pendingText, setPendingText] = useState('');
+  /** true: 「AIに送る / 続ける」確認ダイアログ表示中 */
+  const [showSilenceConfirm, setShowSilenceConfirm] = useState(false);
 
   const sessionRef = useRef<DefaultMeetingSession | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const transcriptBufferRef = useRef<string>('');
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dummyStreamRef = useRef<MediaStream | null>(null);
-  // Web Speech API (Chime 書き起こしの非対応環境向けフォールバック)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const speechRecognitionRef = useRef<any>(null);
-  // ミュート状態を同期的に参照するための ref (コールバック内での stale closure 回避)
-  const isMutedRef = useRef(true);
-  // onTranscript を ref で保持: startMeeting 実行後の再レンダリングで sessionId が
-  // 更新されても、音声認識コールバックが常に最新の関数を参照できるようにする
+
+  // --- 同期アクセス用 ref ---
+  // stale closure 対策: onTranscript を常に最新に保つ
   const onTranscriptRef = useRef(onTranscript);
   onTranscriptRef.current = onTranscript;
+  // ミュート状態 (コールバック内での同期参照)
+  const isMutedRef = useRef(true);
+  // pendingText の同期参照
+  const pendingTextRef = useRef('');
+  // showSilenceConfirm の同期参照
+  const showSilenceConfirmRef = useRef(false);
+  // AI 発話中など外部から一時停止指示
+  const transcriptionPausedRef = useRef(false);
 
-  const flushTranscript = useCallback(() => {
-    const text = transcriptBufferRef.current.trim();
-    if (text) {
-      transcriptBufferRef.current = '';
-      onTranscriptRef.current(text);
-    }
+  // -------------------------------------------------------
+  // テキスト蓄積: 発話の確定結果を受け取り、3秒無音でダイアログ表示
+  // -------------------------------------------------------
+  const accumulateTranscript = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const next = pendingTextRef.current ? `${pendingTextRef.current} ${trimmed}` : trimmed;
+    pendingTextRef.current = next;
+    setPendingText(next);
+
+    // 3秒無音タイマーをリセット
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      if (!pendingTextRef.current.trim()) return;
+      // 3秒無音 → 確認ダイアログを表示し、音声認識を一時停止
+      showSilenceConfirmRef.current = true;
+      setShowSilenceConfirm(true);
+      if (speechRecognitionRef.current) {
+        try { speechRecognitionRef.current.stop(); } catch { /* 既に停止中 */ }
+      }
+    }, 3000);
   }, []);
 
+  // -------------------------------------------------------
+  // Chime SDK Transcribe からの書き起こしイベント
+  // -------------------------------------------------------
   const handleTranscriptEvent = useCallback(
     (event: TranscriptEvent) => {
-      if (isMutedRef.current) return; // ミュート中は文字起こしをスキップ
+      if (isMutedRef.current || transcriptionPausedRef.current) return;
       if (!(event instanceof Transcript)) return;
       for (const result of event.results) {
-        if (result.isPartial) {
-          transcriptBufferRef.current = result.alternatives[0]?.transcript ?? '';
-          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-          debounceTimerRef.current = setTimeout(flushTranscript, 2000);
+        if (!result.isPartial) {
+          // 確定結果のみ蓄積 (partial は 3秒タイマーのリセットのみ)
+          const text = result.alternatives[0]?.transcript ?? '';
+          if (text.trim()) accumulateTranscript(text);
         } else {
+          // 部分認識中はタイマーをリセット (まだ喋っている)
           if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-          transcriptBufferRef.current = result.alternatives[0]?.transcript ?? '';
-          flushTranscript();
         }
       }
     },
-    [flushTranscript],
+    [accumulateTranscript],
   );
 
+  // -------------------------------------------------------
+  // 「AIに送る」ボタン
+  // -------------------------------------------------------
+  const confirmSend = useCallback(() => {
+    const text = pendingTextRef.current.trim();
+    pendingTextRef.current = '';
+    setPendingText('');
+    showSilenceConfirmRef.current = false;
+    setShowSilenceConfirm(false);
+    if (text) onTranscriptRef.current(text);
+    // 音声認識を再開
+    if (!isMutedRef.current && !transcriptionPausedRef.current && speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.start(); } catch { /* 既に開始中 */ }
+    }
+  }, []);
+
+  // -------------------------------------------------------
+  // 「続ける」ボタン
+  // -------------------------------------------------------
+  const confirmContinue = useCallback(() => {
+    showSilenceConfirmRef.current = false;
+    setShowSilenceConfirm(false);
+    // 音声認識を再開
+    if (!isMutedRef.current && !transcriptionPausedRef.current && speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.start(); } catch { /* 既に開始中 */ }
+    }
+  }, []);
+
+  // -------------------------------------------------------
+  // AI 発話中に呼ぶ: 音声認識を一時停止
+  // -------------------------------------------------------
+  const pauseTranscription = useCallback(() => {
+    transcriptionPausedRef.current = true;
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.stop(); } catch { /* 既に停止中 */ }
+    }
+  }, []);
+
+  // -------------------------------------------------------
+  // AI 発話終了後に呼ぶ: 音声認識を再開
+  // -------------------------------------------------------
+  const resumeTranscription = useCallback(() => {
+    transcriptionPausedRef.current = false;
+    // ダイアログ表示中は再開しない
+    if (!isMutedRef.current && !showSilenceConfirmRef.current && speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.start(); } catch { /* 既に開始中 */ }
+    }
+  }, []);
+
+  // -------------------------------------------------------
+  // 会議開始
+  // -------------------------------------------------------
   const startMeeting = useCallback(
     async (idToken: string) => {
       setStatus('connecting');
@@ -170,7 +260,6 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
             }
           }
         } catch {
-          // マイクアクセス拒否・デバイス取得失敗 → マイクなしで継続
           console.warn('マイクデバイスの取得に失敗しました。マイクなしで続行します。');
         }
 
@@ -183,7 +272,6 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
             await session.audioVideo.startVideoInput(firstId);
             setSelectedDeviceId(firstId);
           } else {
-            // デバイスなし → ダミーカメラ
             const stream = createDummyStream(resolution.width, resolution.height);
             dummyStreamRef.current = stream;
             await session.audioVideo.startVideoInput(stream as unknown as string);
@@ -191,7 +279,6 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
             setIsDummyCamera(true);
           }
         } catch {
-          // カメラアクセス拒否・デバイス取得失敗 → ダミーカメラで継続
           console.warn('カメラデバイスの取得に失敗しました。ダミーカメラを使用します。');
           try {
             const stream = createDummyStream(resolution.width, resolution.height);
@@ -217,14 +304,12 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
 
         session.audioVideo.start();
         session.audioVideo.startLocalVideoTile();
-        // デフォルトミュート: 会議開始直後はマイクをオフにする
+        // デフォルトミュート
         session.audioVideo.realtimeMuteLocalAudio();
         isMutedRef.current = true;
         setStatus('connected');
 
-        // Web Speech API フォールバック:
-        // iOS Chrome など Chime の AWS Transcribe 書き起こしが機能しない環境で使用。
-        // ミュート状態に連動して start/stop を制御する。
+        // Web Speech API フォールバック (iOS Chrome 等 Chime Transcribe 非対応環境)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const SpeechRecognitionClass = (window as any).webkitSpeechRecognition ?? (window as any).SpeechRecognition;
         if (SpeechRecognitionClass) {
@@ -234,41 +319,45 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
           recognition.interimResults = true;
           recognition.lang = 'ja-JP';
           recognition.onresult = (event: { resultIndex: number; results: SpeechRecognitionResultList }) => {
-            if (isMutedRef.current) return; // ミュート中は無視
+            if (isMutedRef.current || transcriptionPausedRef.current) return;
             let final = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
               if (event.results[i].isFinal) final += event.results[i][0].transcript;
             }
-            if (final.trim()) onTranscriptRef.current(final.trim());
+            if (final.trim()) accumulateTranscript(final.trim());
           };
-          // 致命的エラー時は自動再起動を停止 (not-allowed で無限ループ防止)
           recognition.onerror = (event: { error: string }) => {
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
               speechRecognitionRef.current = null;
             }
           };
-          // 途切れたら自動再起動 — ただしミュート中は再起動しない
           recognition.onend = () => {
-            if (speechRecognitionRef.current && !isMutedRef.current) recognition.start();
+            // ミュート中・AI発話中・ダイアログ表示中は再起動しない
+            if (
+              speechRecognitionRef.current &&
+              !isMutedRef.current &&
+              !transcriptionPausedRef.current &&
+              !showSilenceConfirmRef.current
+            ) {
+              recognition.start();
+            }
           };
           speechRecognitionRef.current = recognition;
-          // デフォルトミュートのため、ここでは start() しない
+          // デフォルトミュートのため start() しない
         }
       } catch (err) {
         setErrorMessage(err instanceof Error ? err.message : '会議への接続に失敗しました');
         setStatus('error');
       }
     },
-    [handleTranscriptEvent],
+    [handleTranscriptEvent, accumulateTranscript, resolution.width, resolution.height],
   );
 
-  /** カメラデバイスを切り替える。'dummy' を指定するとキャンバス製のダミー映像を使用 */
   const changeCamera = useCallback(
     async (deviceId: string) => {
       const session = sessionRef.current;
       if (!session) return;
 
-      // 前のダミーストリームをクリーンアップ
       if (dummyStreamRef.current) {
         dummyStreamRef.current.getTracks().forEach((t) => t.stop());
         dummyStreamRef.current = null;
@@ -292,7 +381,6 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     [resolution, isVideoOn],
   );
 
-  /** 解像度を変更する */
   const changeResolution = useCallback(
     async (width: number, height: number) => {
       const session = sessionRef.current;
@@ -300,7 +388,6 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
       setResolution({ width, height });
 
       if (isDummyCamera) {
-        // ダミーカメラを新しい解像度で再生成
         if (dummyStreamRef.current) {
           dummyStreamRef.current.getTracks().forEach((t) => t.stop());
         }
@@ -345,6 +432,12 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
       speechRecognitionRef.current.stop();
       speechRecognitionRef.current = null;
     }
+    // バッファをクリア
+    pendingTextRef.current = '';
+    setPendingText('');
+    showSilenceConfirmRef.current = false;
+    setShowSilenceConfirm(false);
+
     const session = sessionRef.current;
     if (session) {
       session.audioVideo.transcriptionController?.unsubscribeFromTranscriptEvent(handleTranscriptEvent);
@@ -371,7 +464,8 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
       session.audioVideo.realtimeUnmuteLocalAudio();
       isMutedRef.current = false;
       setIsMuted(false);
-      if (speechRecognitionRef.current) {
+      // ダイアログ表示中・AI発話中でなければ認識開始
+      if (!transcriptionPausedRef.current && !showSilenceConfirmRef.current && speechRecognitionRef.current) {
         try { speechRecognitionRef.current.start(); } catch { /* 既に開始中 */ }
       }
     } else {
@@ -414,6 +508,8 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     localVideoRef,
     audioRef,
     errorMessage,
+    pendingText,
+    showSilenceConfirm,
     startMeeting,
     endMeeting,
     toggleMute,
@@ -422,5 +518,9 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     changeResolution,
     startContentShare,
     stopContentShare,
+    confirmSend,
+    confirmContinue,
+    pauseTranscription,
+    resumeTranscription,
   };
 }
