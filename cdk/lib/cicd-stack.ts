@@ -67,6 +67,7 @@ export class CicdStack extends cdk.Stack {
       sid: 'AmplifyDeploy',
       actions: [
         'amplify:CreateDeployment', 'amplify:StartDeployment',
+        'amplify:StartJob',   // git 接続済みアプリの RELEASE トリガー
         'amplify:StopJob', 'amplify:GetJob', 'amplify:ListJobs',
         'amplify:GetApp', 'amplify:UpdateApp',
       ],
@@ -172,18 +173,30 @@ export class CicdStack extends cdk.Stack {
               'cd frontend',
               `VITE_API_URL="$API_URL" VITE_REGION="${REGION}" VITE_COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" npm run build`,
               'cd ..',
-              // Amplify デプロイ
+              // Amplify デプロイ (deploy.sh と同じ: git 接続確認 → 分岐)
               'DIST_ZIP=/tmp/frontend-dist.zip',
               'cd frontend/dist && zip -r "$DIST_ZIP" . > /dev/null && cd ../..',
               // 進行中ジョブをキャンセル
               `RUNNING_JOB=$(aws amplify list-jobs --app-id "$AMPLIFY_APP_ID" --branch-name main --region ${REGION} --max-results 1 --query 'jobSummaries[?status==\`RUNNING\` || status==\`PENDING\`].jobId' --output text 2>/dev/null || true)`,
               `if [ -n "$RUNNING_JOB" ] && [ "$RUNNING_JOB" != "None" ]; then aws amplify stop-job --app-id "$AMPLIFY_APP_ID" --branch-name main --job-id "$RUNNING_JOB" --region ${REGION} > /dev/null; sleep 3; fi`,
-              // デプロイ作成 & アップロード
-              `DEPLOY_RESPONSE=$(aws amplify create-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --region ${REGION} --output json)`,
-              `JOB_ID=$(echo "$DEPLOY_RESPONSE" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).jobId));")`,
-              `UPLOAD_URL=$(echo "$DEPLOY_RESPONSE" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).zipUploadUrl));")`,
-              'curl -s -H "Content-Type: application/zip" --upload-file "$DIST_ZIP" "$UPLOAD_URL"',
-              `aws amplify start-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --job-id "$JOB_ID" --region ${REGION} > /dev/null`,
+              // git 接続確認
+              `REPO_URL=$(aws amplify get-app --app-id "$AMPLIFY_APP_ID" --region ${REGION} --query 'app.repository' --output text 2>/dev/null || echo "None")`,
+              // git 接続済み → start-job RELEASE / 非接続 → create-deployment + zip upload
+              `if [ -n "$REPO_URL" ] && [ "$REPO_URL" != "None" ]; then
+                echo "git 接続済み: Amplify ビルドをトリガー (repo: $REPO_URL)"
+                rm -f "$DIST_ZIP"
+                JOB_RESPONSE=$(aws amplify start-job --app-id "$AMPLIFY_APP_ID" --branch-name main --job-type RELEASE --region ${REGION} --output json)
+                JOB_ID=$(echo "$JOB_RESPONSE" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).jobSummary.jobId));")
+                echo "Amplify ビルド開始 (job: $JOB_ID)"
+              else
+                echo "手動デプロイ: zip をアップロード"
+                DEPLOY_RESPONSE=$(aws amplify create-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --region ${REGION} --output json)
+                JOB_ID=$(echo "$DEPLOY_RESPONSE" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).jobId));")
+                UPLOAD_URL=$(echo "$DEPLOY_RESPONSE" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).zipUploadUrl));")
+                curl -s -H "Content-Type: application/zip" --upload-file "$DIST_ZIP" "$UPLOAD_URL"
+                rm -f "$DIST_ZIP"
+                aws amplify start-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --job-id "$JOB_ID" --region ${REGION} > /dev/null
+              fi`,
               // 完了待機 (最大 10 分)
               `for i in $(seq 1 60); do sleep 10; STATUS=$(aws amplify get-job --app-id "$AMPLIFY_APP_ID" --branch-name main --job-id "$JOB_ID" --region ${REGION} --query 'job.summary.status' --output text); echo "($((i*10))s) Amplify: $STATUS"; if [ "$STATUS" = "SUCCEED" ]; then break; elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELLED" ]; then echo "Amplify deploy failed"; exit 1; fi; done`,
               // CloudFront キャッシュ無効化

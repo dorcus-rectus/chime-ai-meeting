@@ -111,10 +111,38 @@ NagSuppressions.addStackSuppressions(stack, [
 // 初回・更新時のみ手動でデプロイ:
 //   npx cdk deploy CicdStack
 // -------------------------------------------------------
-new CicdStack(app, 'CicdStack', {
+const cicdStack = new CicdStack(app, 'CicdStack', {
   env: {
     region: 'ap-northeast-1',
     account: process.env.CDK_DEFAULT_ACCOUNT,
   },
   description: 'CI/CD パイプライン (CodeCommit → CodePipeline → deploy.sh)',
 });
+
+NagSuppressions.addStackSuppressions(cicdStack, [
+  {
+    id: 'AwsSolutions-IAM4',
+    reason:
+      'CodeBuild ロールは CDK デプロイを含む広範な権限が必要なため PowerUserAccess を使用。' +
+      'CI/CD 専用ロールとして範囲を制限している。',
+  },
+  {
+    id: 'AwsSolutions-IAM5',
+    reason:
+      'CodeBuild / CodePipeline の内部ロール (アーティファクトバケット・ログ・KMS) は ' +
+      'CDK が自動生成するワイルドカードポリシーであり、実行時 ARN が確定しないため * が必要。' +
+      'また CDK deploy には CloudFormation 経由でリソース ARN が不確定な権限が多数含まれる。',
+  },
+  {
+    id: 'AwsSolutions-KMS5',
+    reason:
+      'CodePipeline アーティファクトバケットの KMS キーは CDK が自動生成するため、' +
+      'ローテーション設定を直接制御できない。CI/CD 用途であり許容範囲と判断。',
+  },
+  {
+    id: 'AwsSolutions-S1',
+    reason:
+      'CodePipeline アーティファクトバケットはビルド成果物の一時保管用。' +
+      'アクセスログは CodeBuild ログで代替。',
+  },
+]);
