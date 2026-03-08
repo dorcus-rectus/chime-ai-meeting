@@ -106,6 +106,9 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   const dummyStreamRef = useRef<MediaStream | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const speechRecognitionRef = useRef<any>(null);
+  // Chime SDK Transcribe が実際に結果を返した場合は Web Speech API を停止する
+  // (両方が同時に動くと同じ発話が2回 accumulateTranscript に渡されてしまう)
+  const chimeTranscriptActiveRef = useRef(false);
 
   // --- 同期アクセス用 ref ---
   // stale closure 対策: onTranscript を常に最新に保つ
@@ -152,9 +155,16 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
       if (!(event instanceof Transcript)) return;
       for (const result of event.results) {
         if (!result.isPartial) {
-          // 確定結果のみ蓄積 (partial は 3秒タイマーのリセットのみ)
           const text = result.alternatives[0]?.transcript ?? '';
-          if (text.trim()) accumulateTranscript(text);
+          if (!text.trim()) continue;
+          // Chime Transcribe が機能しているので Web Speech API を停止する (重複防止)
+          if (!chimeTranscriptActiveRef.current) {
+            chimeTranscriptActiveRef.current = true;
+            if (speechRecognitionRef.current) {
+              try { speechRecognitionRef.current.stop(); } catch { /* 既に停止中 */ }
+            }
+          }
+          accumulateTranscript(text);
         } else {
           // 部分認識中はタイマーをリセット (まだ喋っている)
           if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -332,12 +342,13 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
             }
           };
           recognition.onend = () => {
-            // ミュート中・AI発話中・ダイアログ表示中は再起動しない
+            // ミュート中・AI発話中・ダイアログ表示中・Chime有効時は再起動しない
             if (
               speechRecognitionRef.current &&
               !isMutedRef.current &&
               !transcriptionPausedRef.current &&
-              !showSilenceConfirmRef.current
+              !showSilenceConfirmRef.current &&
+              !chimeTranscriptActiveRef.current
             ) {
               recognition.start();
             }
@@ -432,11 +443,12 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
       speechRecognitionRef.current.stop();
       speechRecognitionRef.current = null;
     }
-    // バッファをクリア
+    // バッファ・フラグをクリア
     pendingTextRef.current = '';
     setPendingText('');
     showSilenceConfirmRef.current = false;
     setShowSilenceConfirm(false);
+    chimeTranscriptActiveRef.current = false;
 
     const session = sessionRef.current;
     if (session) {
