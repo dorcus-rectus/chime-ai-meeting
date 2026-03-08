@@ -1058,7 +1058,7 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      nodejs: 20
+      nodejs: 24
   pre_build:
     commands:
       - cd cdk

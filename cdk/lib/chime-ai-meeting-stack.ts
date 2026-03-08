@@ -394,7 +394,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     const bundlingOptions: lambdaNodejs.BundlingOptions = {
       minify: true,
       sourceMap: false,
-      target: 'node20',
+      target: 'node24',
       externalModules: [],
     };
 
@@ -403,7 +403,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // -------------------------------------------------------
     const createMeetingFn = new lambdaNodejs.NodejsFunction(this, 'CreateMeetingFunction', {
       functionName: 'chime-ai-create-meeting',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       entry: path.join(__dirname, '../lambda/create-meeting/index.ts'),
       handler: 'handler',
       role: lambdaRole,
@@ -422,7 +422,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // -------------------------------------------------------
     const aiChatFn = new lambdaNodejs.NodejsFunction(this, 'AiChatFunction', {
       functionName: 'chime-ai-chat',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       entry: path.join(__dirname, '../lambda/ai-chat/index.ts'),
       handler: 'handler',
       role: lambdaRole,
@@ -440,7 +440,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // -------------------------------------------------------
     const ingestDocumentFn = new lambdaNodejs.NodejsFunction(this, 'IngestDocumentFunction', {
       functionName: 'chime-ai-ingest-document',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       entry: path.join(__dirname, '../lambda/ingest-document/index.ts'),
       handler: 'handler',
       role: lambdaRole,
@@ -460,7 +460,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // -------------------------------------------------------
     const ingestDocumentWorkerFn = new lambdaNodejs.NodejsFunction(this, 'IngestDocumentWorkerFunction', {
       functionName: 'chime-ai-ingest-document-worker',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       entry: path.join(__dirname, '../lambda/ingest-document-worker/index.ts'),
       handler: 'handler',
       role: lambdaRole,
@@ -484,7 +484,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     // -------------------------------------------------------
     const userManagementFn = new lambdaNodejs.NodejsFunction(this, 'UserManagementFunction', {
       functionName: 'chime-ai-user-management',
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_24_X,
       entry: path.join(__dirname, '../lambda/user-management/index.ts'),
       handler: 'handler',
       role: lambdaRole,
