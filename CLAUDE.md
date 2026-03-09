@@ -284,10 +284,10 @@ git remote set-url codecommit codecommit::ap-northeast-1://chime-ai-meeting
 
 ```bash
 # SSO ログイン (セッション切れ時)
-aws sso login --profile AdministratorAccess-015158432087
+aws sso login --profile YOUR_SSO_PROFILE
 
 # プッシュ (プロファイルを URL に埋め込む)
-git push codecommit::ap-northeast-1://AdministratorAccess-015158432087@chime-ai-meeting main
+git push codecommit::ap-northeast-1://YOUR_SSO_PROFILE@chime-ai-meeting main
 ```
 
 > **注意**: `git push codecommit main` は SSO プロファイルを認識できないため、URL にプロファイル名を埋め込む形式を使うこと。認証情報ストアへの書き込み警告 (`fatal: Failed to write item to store`) は無視して問題ない (プッシュ自体は成功する)。
@@ -327,3 +327,9 @@ git push codecommit::ap-northeast-1://AdministratorAccess-015158432087@chime-ai-
 - **Vision と S3 RAG の併用**: `ai-chat/index.ts` では Vision (Converse) と RAG (S3 Vectors) を `Promise.allSettled` で並列実行する。フレームがある場合も RAG をスキップせず、両コンテキストを AgentCore に渡す。Vision 失敗時はエラーを `VisionError` クラスで識別し、RAG のみで応答を継続する (完全失敗を防ぐグレースフルフォールバック)
 - **Vision エラーのデバッグ**: Lambda は Vision 失敗時にレスポンスの `visionError` フィールドにエラー詳細を返す。フロントエンドは `console.warn` でブラウザ開発者ツールに出力するため、F12 コンソールタブで `Vision 解析失敗 (RAG フォールバックで応答):` のログを確認できる
 - **Converse API の IAM 権限 (更新)**: `bedrock:Converse` に加えて `bedrock:InvokeModel` も `BedrockVisionPolicy` に付与すること。`jp.*` クロスリージョン推論プロファイルの Converse API は内部的に `bedrock:InvokeModel` を要求する場合がある
+- **RAG userId フィルタ**: `ai-chat/index.ts` の `retrieveContext(queryText, userId, topK)` は `QueryVectorsCommand` の `topK` を `topK * 5` に増やしてからメタデータの `userId` フィールドでフィルタする。フィルタ後に `slice(0, topK)` で件数を絞る。ユーザー間のドキュメント漏洩を防ぐために必須
+- **`useMeeting` の `isProcessing` 引数**: `useMeeting(onTranscript, isProcessing)` の第2引数で AI 処理中フラグを受け取る。`MeetingRoom.tsx` は `useAIConversation` より先に `useMeeting` を呼ぶため `isProcessingBridge` state で橋渡しし、`useEffect` で同期する
+- **AI 処理中の無音ダイアログ抑制**: debounce タイマーコールバック内で `isProcessingRef.current === true` の場合は `pendingShowDialogRef.current = true` を記録してダイアログ表示をスキップ。`isProcessing` が `false` になった時点で `useEffect` がダイアログを自動表示する
+- **マイクボタン4状態**: `isMuted` → 赤 `#ef4444` / `isProcessing` → 琥珀 `#f59e0b` / `isSpeaking` → 暗灰色 `#2a2a4a` / 聴取中 → シアン `#06b6d4`。`isProcessing || isSpeaking` 時は `opacity: 0.6` + `cursor: not-allowed`
+- **ぼかし preference の localStorage 保存**: `UserProfile.tsx` の「映像設定」セクションで `localStorage.setItem('blurPreference', 'on'/'off')` を保存。`useMeeting` の `startMeeting` 内 `BackgroundBlurVideoFrameProcessor.isSupported().then()` で `localStorage.getItem('blurPreference') === 'on'` を確認して自動適用。`selectedDeviceIdRef` で非同期コールバック内のデバイス ID を参照する
+- **Playwright E2E テストの helpers**: `frontend/e2e/helpers/auth.ts` に `login/signup/deleteAccount`、`frontend/e2e/helpers/meeting.ts` に `enterMeetingRoom/waitForAIResponse/uploadRAGText` を定義。新しい spec ファイル (`meeting-components.spec.ts`, `rag-security.spec.ts`, `rag-filetypes.spec.ts`, `performance.spec.ts`) はこれらを import して使う

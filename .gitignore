@@ -57,6 +57,14 @@ frontend/.env.*.local
 *.pem
 *.key
 
+# ─── Claude Code / MCP ─────────────────────────────────────────────────────────
+# .mcp.json には AWS SSO プロファイル名 (アカウント ID 含む) などローカル固有設定が含まれる
+# テンプレートは .mcp.json.example を参照すること
+.mcp.json
+.claude/
+# Playwright MCP の状態ファイル・スクリーンショットキャッシュ
+.playwright-mcp/
+
 # ─── IDE / エディタ ─────────────────────────────────────────────────────────────
 .vscode/
 .idea/

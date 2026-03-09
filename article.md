@@ -31,7 +31,10 @@
 | ユーザー認証・管理 | Amazon Cognito |
 | インフラのコード管理 | AWS CDK (TypeScript) + Jest (スナップショット・Fine-grained・cdk-nag) |
 | CI/CD パイプライン | AWS CodeCommit + CodePipeline + Amplify |
-| テスト | Vitest (単体) + Playwright (E2E) + CDK Jest + ESLint + Prettier |
+| **RAG ユーザー分離** | `QueryVectorsCommand` を userId でフィルタしてユーザー間のドキュメント漏洩を防止 |
+| **音声認識 UI 4状態** | マイクボタン: ミュート赤/聴取中シアン/AI処理中琥珀/AI発話中 + コントロールバー上のステータスラベル |
+| **ぼかし preference** | UserProfile で preference 保存 → 次の会議開始時に `localStorage` 参照して自動適用 |
+| テスト | Vitest (単体 31件) + Playwright (E2E: helpers + 7 spec) + CDK Jest (53件) + ESLint |
 | フロントエンド | React 19 + Vite 7 + Amplify Hosting |
 
 :::message
@@ -2236,7 +2239,7 @@ Object.defineProperty(HTMLMediaElement.prototype, 'muted', { set: vi.fn(), get: 
 | ファイル | テスト数 | 主な検証内容 |
 |--------|---------|------------|
 | `AIParticipant.test.tsx` | 8 | アイドル・解析中・応答中の状態表示、動画要素の存在 |
-| `DocumentUpload.test.tsx` | 6 | フォームの有効化条件、202 非同期レスポンス、フォームクリア |
+| `DocumentUpload.test.tsx` | 8 | フォームの有効化条件、202 非同期レスポンス、フォームクリア |
 | `LoginScreen.test.tsx` | 7 | ログイン呼び出し、モード切り替え、パスワードバリデーション |
 | `useAIConversation.test.ts` | 8 | 初期状態、ガード条件、成功/エラーフロー、クリア処理 |
 
@@ -2261,6 +2264,43 @@ export default defineConfig({
 });
 ```
 
+#### テストファイル構成
+
+```
+frontend/e2e/
+├── helpers/
+│   ├── auth.ts                 # login / signup / deleteAccount ユーティリティ
+│   └── meeting.ts              # enterMeetingRoom / waitForAIResponse / uploadRAGText
+├── login.spec.ts               # ログイン画面 (認証不要・常時実行)
+├── meeting.spec.ts             # ロビー + 会議室 UI
+├── meeting-components.spec.ts  # マイク4状態・無音ダイアログ・コンポーネント網羅
+├── document-upload.spec.ts     # RAG 登録フォーム
+├── rag-security.spec.ts        # ユーザー間 RAG 分離 (2ユーザー必要)
+├── rag-filetypes.spec.ts       # txt/md/csv 登録・250KB 超エラー
+└── performance.spec.ts         # 読み込み・会議開始・AI 応答・RAG 登録の応答時間
+```
+
+共通ロジックは `helpers/` に切り出すことで各 spec が DRY になります。
+
+```typescript
+// e2e/helpers/auth.ts
+export async function login(page: Page, email: string, password: string) {
+  await page.goto('/');
+  await page.getByLabel('メールアドレス').fill(email);
+  await page.getByLabel('パスワード').fill(password);
+  await page.getByRole('button', { name: 'ログイン' }).click();
+  await expect(page.getByRole('button', { name: '会議を開始する' }))
+    .toBeVisible({ timeout: 20_000 });
+}
+
+// e2e/helpers/meeting.ts
+export async function enterMeetingRoom(page: Page, email: string, password: string) {
+  await login(page, email, password);
+  await page.getByRole('button', { name: '会議を開始する' }).click();
+  await expect(page.locator('text=会議中')).toBeVisible({ timeout: 25_000 });
+}
+```
+
 E2E テストは認証情報の有無で実行範囲を切り替えます。
 
 ```typescript
@@ -2271,15 +2311,48 @@ test('ログインフォームの要素が揃っている', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'ログイン' })).toBeVisible();
 });
 
-// e2e/meeting.spec.ts — 認証あり (TEST_EMAIL/TEST_PASSWORD が必要)
-test.skip(!HAS_AUTH_CREDENTIALS, 'TEST_EMAIL / TEST_PASSWORD が未設定のためスキップ');
-
-test('AI アバターカードが表示される', async ({ page }) => {
-  await login(page, TEST_EMAIL, TEST_PASSWORD);
-  await page.getByRole('button', { name: '会議を開始する' }).click();
-  await expect(page.locator('text=AI アシスタント')).toBeVisible();
-  await expect(page.locator('video[src="/aibot.mp4"]')).toBeVisible();
+// e2e/meeting-components.spec.ts — マイクボタン4状態の確認
+test('マイクボタン — ミュート解除で聴取中(シアン)に変わる', async ({ page }) => {
+  await enterMeetingRoom(page, TEST_EMAIL, TEST_PASSWORD);
+  const muteBtn = page.locator('button[title*="ミュート解除"]');
+  await muteBtn.click();
+  const bg = await page.locator('button[title*="ミュート"]').first()
+    .evaluate((el) => (el as HTMLElement).style.background);
+  expect(bg).toContain('06b6d4');  // シアン: 聴取中
 });
+
+// e2e/rag-security.spec.ts — ユーザー間 RAG 分離
+test('User A の RAG ドキュメントが User B に見えない', async ({ browser }) => {
+  // User A でログイン → RAG 登録
+  const ctxA = await browser.newContext();
+  const pageA = await ctxA.newPage();
+  await enterMeetingRoom(pageA, TEST_EMAIL, TEST_PASSWORD);
+  // ... RAG 登録 ...
+
+  // User B でログイン → 一覧に表示されないことを確認
+  const ctxB = await browser.newContext();
+  const pageB = await ctxB.newPage();
+  await login(pageB, TEST_EMAIL_2, TEST_PASSWORD_2);
+  await expect(pageB.locator(`text=${SECRET_SOURCE}`)).toBeHidden();
+});
+```
+
+#### テスト実行コマンド
+
+```bash
+cd frontend
+
+# 認証不要テストのみ (ログイン画面 7件)
+npx playwright test e2e/login.spec.ts --reporter=list
+
+# 全テスト (認証必須テストは TEST_EMAIL/TEST_PASSWORD が必要)
+TEST_EMAIL=your@email.com TEST_PASSWORD=yourpass \
+npx playwright test --reporter=list
+
+# RAG 分離テスト (2ユーザー必要)
+TEST_EMAIL=user_a@example.com TEST_PASSWORD=passA \
+TEST_EMAIL_2=user_b@example.com TEST_PASSWORD_2=passB \
+npx playwright test e2e/rag-security.spec.ts --reporter=verbose
 ```
 
 ### Playwright MCP 連携
@@ -2721,14 +2794,15 @@ Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2025 年時点で最
 | **インフラ (IaC)** | AWS CDK (TypeScript)、CodeCommit + CodePipeline |
 | **バックエンド** | Lambda、Bedrock AgentCore、S3 Vectors + SQS、Cognito (Admin API) |
 | **フロントエンド** | React 19 + Vite 7、Chime SDK JS、画面共有 Canvas キャプチャ、Amplify Hosting |
-| **映像処理** | BackgroundBlurVideoFrameProcessor (背景ぼかし)、ネットワーク品質モニタリング |
-| **RAG 拡張** | メタデータタグ (SQS → S3 Vectors → 管理 UI)、折りたたみ式登録 UI |
+| **映像処理** | BackgroundBlurVideoFrameProcessor (背景ぼかし・preference 永続化)、ネットワーク品質モニタリング |
+| **RAG 拡張** | userId フィルタによるユーザー間分離、メタデータタグ、折りたたみ式登録 UI |
+| **音声認識 UX** | マイクボタン4状態 (ミュート/聴取中/AI処理中/AI発話中)、AI処理中の無音ダイアログ抑制 |
 | **セキュリティ** | Cognito JWT 認証、CSP / HSTS、Amplify WAF 統合 |
-| **CI/CD & 品質保証** | Vitest、Playwright、ESLint (`exhaustive-deps: error`)、Prettier |
+| **CI/CD & 品質保証** | Vitest (31件)、Playwright (helpers + 7 spec)、CDK Jest (53件)、ESLint |
 
 特に Bedrock AgentCore は、従来の Converse API + DynamoDB による自前セッション管理と比べて Lambda の実装がシンプルになります。S3 Vectors も、ベクトル DB のインフラ管理が不要になる点で開発体験の改善に寄与します。SQS による非同期 RAG 登録は API Gateway の 29 秒タイムアウト制約を根本解決しています。
 
-追加機能として `BackgroundBlurVideoFrameProcessor` による **背景ぼかし**と、`AudioVideoObserver` コールバックによる **ネットワーク品質モニタリング** も実装しました。これらは Chime SDK JS が提供する高水準 API を活用しており、追加インフラなしで実現できます。RAG ドキュメントへの **メタデータタグ付与** はベクトル登録→ワーカー→管理 UI の全パイプラインを通じて一貫して扱われ、ドキュメントの整理・検索性を向上させます。また、AI テキスト表示後すぐに処理完了とする `setIsProcessing` の配置変更で音声レスポンスの体感速度も改善しています。
+追加機能として `BackgroundBlurVideoFrameProcessor` による **背景ぼかし** (UserProfile での preference 永続化と会議開始時の自動適用) と、`AudioVideoObserver` コールバックによる **ネットワーク品質モニタリング** も実装しました。これらは Chime SDK JS が提供する高水準 API を活用しており、追加インフラなしで実現できます。RAG ドキュメントへの **メタデータタグ付与** はベクトル登録→ワーカー→管理 UI の全パイプラインを通じて一貫して扱われ、ドキュメントの整理・検索性を向上させます。**RAG の userId フィルタ** により、S3 Vectors クエリ結果をユーザーごとに分離してドキュメントの漏洩を防止しています。マイクボタンの **4状態 UI** (ミュート/聴取中/AI処理中/AI発話中) と AI 処理中の **無音ダイアログ抑制** により、カメラ映像送信後に音声認識がブロックされる UX 問題も解消しています。
 
 インフラ面では **CodeCommit + CodePipeline + Amplify によるモノレポ CI/CD** を整備し、`git push` 一発でフロントエンドとインフラが同時に自動デプロイされる体制を実現しています。セキュリティ面でも `customHttp.yml` による HTTP セキュリティヘッダーと Amplify ネイティブの WAF 統合により、PoC 品質からエンタープライズ本番品質へのギャップを埋めています。
 
