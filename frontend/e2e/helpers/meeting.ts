@@ -44,5 +44,5 @@ export async function uploadRAGText(
   const sourceInput = page.getByPlaceholder(/出典名/).or(page.getByLabel(/出典/));
   if (await sourceInput.isVisible()) await sourceInput.fill(source);
 
-  await page.getByRole('button', { name: '登録' }).click();
+  await page.getByRole('button', { name: 'インデックス登録' }).click();
 }

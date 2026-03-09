@@ -6,6 +6,9 @@ import { expect } from '@playwright/test';
  * ロビー画面「会議を開始する」ボタンが現れるまで待機する
  */
 export async function login(page: Page, email: string, password: string) {
+  // 既存セッション・状態をクリアしてログイン画面から開始する
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
   await page.goto('/');
   await page.getByLabel('メールアドレス').fill(email);
   await page.getByLabel('パスワード').fill(password);

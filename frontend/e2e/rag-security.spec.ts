@@ -22,6 +22,8 @@ test.describe('RAG ユーザー間分離', () => {
   test.skip(!HAS_BOTH_USERS, 'TEST_EMAIL / TEST_PASSWORD / TEST_EMAIL_2 / TEST_PASSWORD_2 が未設定のためスキップ');
 
   test('User A の RAG ドキュメントが User B に見えない', async ({ browser }) => {
+    test.setTimeout(120_000);
+
     // ─── User A: RAG 登録 ────────────────────────────────────────
     const ctxA = await browser.newContext();
     const pageA = await ctxA.newPage();
@@ -35,13 +37,23 @@ test.describe('RAG ユーザー間分離', () => {
     await pageA.getByPlaceholder(/テキストを貼り付け/).fill(SECRET_CONTENT);
     const sourceInputA = pageA.getByPlaceholder(/出典名/).or(pageA.getByLabel(/出典/));
     if (await sourceInputA.isVisible()) await sourceInputA.fill(SECRET_SOURCE);
-    await pageA.getByRole('button', { name: '登録' }).click();
-    // 登録完了を待機 (成功メッセージ or フォームリセット)
-    await pageA.waitForTimeout(3_000);
+    await pageA.getByRole('button', { name: 'インデックス登録' }).click();
+    // SQS 受付 → 成功メッセージを待機
+    await expect(
+      pageA.locator('text=登録リクエストを受け付けました').or(pageA.locator('text=登録完了')),
+    ).toBeVisible({ timeout: 10_000 });
 
     // User A の RAG 管理画面で secret_doc が存在することを確認
+    // SQS ワーカーが非同期処理するため「更新」ボタンを繰り返しクリックしながら最大 60 秒待機
     await pageA.getByRole('button', { name: 'RAG管理' }).click();
-    await expect(pageA.locator(`text=${SECRET_SOURCE}`)).toBeVisible({ timeout: 10_000 });
+    await expect(pageA.locator('text=RAG ドキュメント管理')).toBeVisible({ timeout: 10_000 });
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      if (await pageA.locator(`text=${SECRET_SOURCE}`).isVisible()) break;
+      await pageA.getByRole('button', { name: '更新' }).click();
+      await pageA.waitForTimeout(5_000);
+    }
+    await expect(pageA.locator(`text=${SECRET_SOURCE}`)).toBeVisible({ timeout: 5_000 });
     await ctxA.close();
 
     // ─── User B: RAG 参照確認 ────────────────────────────────────
@@ -51,7 +63,7 @@ test.describe('RAG ユーザー間分離', () => {
     // User B の RAG 管理画面で secret_doc が表示されないことを確認
     await login(pageB, TEST_EMAIL_2, TEST_PASSWORD_2);
     await pageB.getByRole('button', { name: 'RAG管理' }).click();
-    await expect(pageB.locator('text=RAGドキュメント').or(pageB.locator('text=登録済みドキュメント'))).toBeVisible({ timeout: 10_000 });
+    await expect(pageB.locator('text=RAG ドキュメント管理')).toBeVisible({ timeout: 10_000 });
     await expect(pageB.locator(`text=${SECRET_SOURCE}`)).toBeHidden();
 
     await ctxB.close();

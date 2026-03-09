@@ -2085,7 +2085,7 @@ frontend:
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "12852d691bed3d078f79573f1179edbe8b0c7fc7e9aa435b3c5313e11eaaef87.zip",
+          "S3Key": "49ffb8318428c2ea54b1d93c8d10219710a62cf54f1d6c076a691138656142d0.zip",
         },
         "Environment": {
           "Variables": {

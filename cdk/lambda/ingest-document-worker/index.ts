@@ -100,7 +100,7 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
       const vectors: Array<{
         key: string;
         data: { float32: number[] };
-        metadata: { text: string; source: string; userId: string; chunkIndex: number; createdAt: string; tags: string[] };
+        metadata: { text: string; source: string; userId: string; chunkIndex: number; createdAt: string; tags?: string[] };
       }> = new Array(chunks.length);
 
       for (let i = 0; i < chunks.length; i += EMBED_CONCURRENCY) {
@@ -111,7 +111,8 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
           vectors[idx] = {
             key: `${userId}/${crypto.randomUUID()}`,
             data: { float32: embedding },
-            metadata: { text: chunks[idx], source, userId, chunkIndex: idx, createdAt, tags },
+            // S3 Vectors は空配列を metadata に許容しないため tags が空の場合は省略する
+            metadata: { text: chunks[idx], source, userId, chunkIndex: idx, createdAt, ...(tags.length > 0 ? { tags } : {}) },
           };
         });
       }

@@ -701,7 +701,11 @@ export function useMeeting(onTranscript: (text: string) => void, isProcessing = 
       session.audioVideo.stopAudioInput();
       sessionRef.current = null;
     }
-    setStatus('ended');
+    // React StrictMode のクリーンアップ対策:
+    // 会議が未開始 (status='idle') の場合は 'ended' に遷移させない
+    // React StrictMode のクリーンアップ対策:
+    // 会議が未開始 (status='idle') の場合は 'ended' に遷移させない
+    setStatus((prev) => (prev === 'idle' ? 'idle' : 'ended'));
     setMeetingId(null);
     setIsContentSharing(false);
     setIsDummyCamera(false);
