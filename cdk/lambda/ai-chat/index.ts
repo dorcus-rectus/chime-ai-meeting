@@ -36,6 +36,18 @@ const corsHeaders = {
 };
 
 // -------------------------------------------------------
+// XML タグのエスケープ — プロンプトインジェクション対策
+// RAG コンテンツやユーザー入力に </context> 等が含まれても
+// AgentCore への inputText を破壊しないようにする
+// -------------------------------------------------------
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// -------------------------------------------------------
 // Titan Embeddings V2 でテキストをベクトル化 (RAG クエリ用)
 // -------------------------------------------------------
 async function embedText(text: string): Promise<number[]> {
@@ -268,13 +280,17 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     //   - 画面共有のみ: Converse で解析した内容 + ユーザー発話
     //   - RAG のみ: 参考情報 + ユーザー発話
     //   - それ以外: ユーザー発話のみ
-    const inputText = frameAnalysis && ragContext
-      ? `[画面共有の解析結果]\n${frameAnalysis}\n\n[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言:\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
-      : frameAnalysis
-        ? `[画面共有の解析結果]\n${frameAnalysis}\n\nユーザーの発言:\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
-        : ragContext
-          ? `[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言を元に回答してください。\n<user_input>\n${text}\n</user_input>`
-          : `<user_input>\n${text}\n</user_input>`;
+    // エスケープして XML 構造を保護 (プロンプトインジェクション対策)
+    const safeText = escapeXml(text || '');
+    const safeRag = escapeXml(ragContext);
+    const safeFrame = escapeXml(frameAnalysis);
+    const inputText = safeFrame && safeRag
+      ? `[画面共有の解析結果]\n${safeFrame}\n\n[参考情報]\n<context>\n${safeRag}\n</context>\n\nユーザーの発言:\n<user_input>\n${safeText || '（この画面について教えてください）'}\n</user_input>`
+      : safeFrame
+        ? `[画面共有の解析結果]\n${safeFrame}\n\nユーザーの発言:\n<user_input>\n${safeText || '（この画面について教えてください）'}\n</user_input>`
+        : safeRag
+          ? `[参考情報]\n<context>\n${safeRag}\n</context>\n\nユーザーの発言を元に回答してください。\n<user_input>\n${safeText}\n</user_input>`
+          : `<user_input>\n${safeText}\n</user_input>`;
 
     // --- 2. Bedrock AgentCore Runtime で AI 応答を生成 ---
     // sessionId = Chime MeetingId (UUID形式) → AgentCore がセッション単位で会話履歴を管理
@@ -314,18 +330,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }),
     };
   } catch (error) {
+    // 詳細エラーは CloudWatch Logs に記録し、レスポンスには汎用メッセージのみ返す
     console.error('AI チャットエラー:', error);
-    const isNotFound =
-      error instanceof Error && error.name === 'ResourceNotFoundException';
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({
-        error: isNotFound
-          ? `AgentCore エージェントが見つかりません。CDK デプロイと Bedrock コンソールのモデルアクセスを確認してください。`
-          : 'AI の応答生成に失敗しました',
-        message: error instanceof Error ? error.message : String(error),
-      }),
+      body: JSON.stringify({ error: 'AI の応答生成に失敗しました' }),
     };
   }
 };

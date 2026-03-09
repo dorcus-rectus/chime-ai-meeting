@@ -46,6 +46,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         body: JSON.stringify({ error: 'content フィールドに有効なテキストが必要です (10文字以上)' }),
       };
     }
+    if (typeof source === 'string' && source.length > 500) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'source フィールドは 500 文字以内にしてください' }),
+      };
+    }
 
     // SQS メッセージサイズ上限は 256KB。大きいドキュメントはエラー
     const messageBody = JSON.stringify({ content: content.trim(), source, userId });
@@ -83,10 +90,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({
-        error: 'ドキュメントの登録に失敗しました',
-        message: error instanceof Error ? error.message : String(error),
-      }),
+      body: JSON.stringify({ error: 'ドキュメントの登録に失敗しました' }),
     };
   }
 };

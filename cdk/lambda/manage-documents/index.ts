@@ -124,15 +124,32 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       // 25 件ずつ削除 (API 上限対策)
       const BATCH_SIZE = 25;
       let deleted = 0;
+      const errors: string[] = [];
       for (let i = 0; i < keysToDelete.length; i += BATCH_SIZE) {
-        await s3VectorsClient.send(new DeleteVectorsCommand({
-          vectorBucketName: VECTOR_BUCKET_NAME,
-          indexName: VECTOR_INDEX_NAME,
-          keys: keysToDelete.slice(i, i + BATCH_SIZE),
-        }));
-        deleted += Math.min(BATCH_SIZE, keysToDelete.length - i);
+        const batch = keysToDelete.slice(i, i + BATCH_SIZE);
+        try {
+          await s3VectorsClient.send(new DeleteVectorsCommand({
+            vectorBucketName: VECTOR_BUCKET_NAME,
+            indexName: VECTOR_INDEX_NAME,
+            keys: batch,
+          }));
+          deleted += batch.length;
+        } catch (batchErr) {
+          console.error(`DeleteVectors バッチ失敗 (offset=${i}):`, batchErr);
+          errors.push(`batch[${i}..${i + batch.length - 1}]`);
+        }
       }
 
+      if (errors.length > 0) {
+        return {
+          statusCode: 207,
+          headers,
+          body: JSON.stringify({
+            deleted,
+            message: `${deleted} チャンクを削除しました (一部失敗: ${errors.join(', ')})`,
+          }),
+        };
+      }
       return ok({ deleted, message: `${deleted} チャンクを削除しました` });
     } catch (e) {
       console.error('DELETE /documents error:', e);

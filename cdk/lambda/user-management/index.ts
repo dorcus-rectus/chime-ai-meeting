@@ -149,10 +149,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return {
         statusCode: 500,
         headers: corsHeaders,
-        body: JSON.stringify({
-          error: 'アカウントの削除に失敗しました',
-          message: error instanceof Error ? error.message : String(error),
-        }),
+        body: JSON.stringify({ error: 'アカウントの削除に失敗しました' }),
       };
     }
   }

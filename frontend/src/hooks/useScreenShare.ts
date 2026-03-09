@@ -68,7 +68,10 @@ export function useScreenShare(): UseScreenShareReturn {
       setIsSharing(true);
       return stream;
     } catch (err) {
-      // NotAllowedError: ユーザーがキャンセル / NotSupportedError: ブラウザ非対応
+      // 取得済みのストリームがあれば確実に停止してリークを防ぐ
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      // NotAllowedError はユーザーのキャンセル操作なのでエラー表示しない
       if (err instanceof Error && err.name !== 'NotAllowedError') {
         setError(`画面共有の開始に失敗しました: ${err.message}`);
       }
