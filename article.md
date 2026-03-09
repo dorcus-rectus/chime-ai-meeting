@@ -161,6 +161,23 @@ await client.send(
 );
 ```
 
+:::message alert
+**💰 Amazon Transcribe のコストに注意**
+
+Amazon Transcribe はストリーミング書き起こしに対して**接続時間ベースで課金**されます（2026 年 3 月時点: $0.024 / 分）。会議中はマイクがミュートでも Transcribe セッションが継続されるため、長時間の会議や多数の同時接続では費用が積み上がりやすくなります。
+
+**本番運用でのコスト削減策として、以下を検討してください：**
+
+| 手段 | 概要 |
+|------|------|
+| **Web Speech API への全面切り替え** | ブラウザ内処理のため Transcribe コストがゼロ。精度は Transcribe より劣る場合があるが、日常会話レベルでは十分なケースが多い |
+| **ミュート時に Transcribe を停止** | `StopMeetingTranscription` を呼び出しミュート解除時に `StartMeetingTranscription` を再開。マイク ON の時間だけ課金される |
+| **Amazon Transcribe の代替** | 会議終了後に録音データをバッチで書き起こす設計に変更すれば Streaming ではなく Standard API を使え単価が下がる（ただしリアルタイム性が失われる） |
+| **使用量アラート設定** | AWS Budgets で Transcribe の月次支出に上限アラートを設定し、予期しない高額請求を早期検知する |
+
+本記事のシステムは**ミュート時は音声認識イベントを無視する**実装になっていますが、Transcribe セッション自体は継続されている点に注意してください。
+:::
+
 ブラウザは返却された `Meeting` と `Attendee` オブジェクトを使って Chime SDK JS でセッションを確立します。
 
 ```typescript
@@ -2803,6 +2820,8 @@ Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2026 年 3 月時点
 | **CI/CD & 品質保証** | Vitest (31件)、Playwright (helpers + 7 spec)、CDK Jest (53件)、ESLint |
 
 特に Bedrock AgentCore は、従来の Converse API + DynamoDB による自前セッション管理と比べて Lambda の実装がシンプルになります。S3 Vectors も、ベクトル DB のインフラ管理が不要になる点で開発体験の改善に寄与します。SQS による非同期 RAG 登録は API Gateway の 29 秒タイムアウト制約を根本解決しています。
+
+**本番運用に向けたコスト最適化の余地**として、特に **Amazon Transcribe のストリーミング課金**が挙げられます。会議中は常時接続されるため長時間・多接続のシナリオでは支出が増大します。ミュート時に `StopMeetingTranscription` を呼び出してセッションを切断する、あるいは Web Speech API へ全面移行することでコストをゼロに近づけることができます。詳細は「[iOS での音声認識: Web Speech API フォールバック](#ios-での音声認識-web-speech-api-フォールバック)」の手前にあるコスト注意書きを参照してください。
 
 追加機能として `BackgroundBlurVideoFrameProcessor` による **背景ぼかし** (UserProfile での preference 永続化と会議開始時の自動適用) と、`AudioVideoObserver` コールバックによる **ネットワーク品質モニタリング** も実装しました。これらは Chime SDK JS が提供する高水準 API を活用しており、追加インフラなしで実現できます。RAG ドキュメントへの **メタデータタグ付与** はベクトル登録→ワーカー→管理 UI の全パイプラインを通じて一貫して扱われ、ドキュメントの整理・検索性を向上させます。**RAG の userId フィルタ** により、S3 Vectors クエリ結果をユーザーごとに分離してドキュメントの漏洩を防止しています。マイクボタンの **4状態 UI** (ミュート/聴取中/AI処理中/AI発話中) と AI 処理中の **無音ダイアログ抑制** により、カメラ映像送信後に音声認識がブロックされる UX 問題も解消しています。
 
