@@ -124,8 +124,12 @@ test.describe('会議室 UI コンポーネント', () => {
     await expect(page.locator('text=3秒間の無音を検知しました')).toBeHidden();
   });
 
-  test('退出ボタンで会議が終了する', async ({ page }) => {
+  test('退出ボタンで確認ダイアログが表示され、退出できる', async ({ page }) => {
     await page.getByRole('button', { name: /退出/ }).click();
+    // 退出確認ダイアログが表示される
+    await expect(page.locator('text=会議を退出しますか')).toBeVisible({ timeout: 5_000 });
+    // 「このまま退出」で会議終了
+    await page.getByRole('button', { name: 'このまま退出' }).click();
     await expect(
       page.locator('text=会議が終了しました').or(page.locator('text=会議を開始する')),
     ).toBeVisible({ timeout: 10_000 });

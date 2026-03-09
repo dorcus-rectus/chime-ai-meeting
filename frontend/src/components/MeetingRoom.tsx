@@ -108,6 +108,10 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
   const [showRagUpload, setShowRagUpload] = useState(false);
   // 無音確認ダイアログ内の編集テキスト
   const [editedText, setEditedText] = useState('');
+  // 退出確認ダイアログ
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  // カメラフレーム送信フラッシュ
+  const [cameraFlashing, setCameraFlashing] = useState(false);
 
   // 画面共有フック
   const { isSharing, error: screenShareError, screenVideoRef, startScreenShare, stopScreenShare, captureFrame } = useScreenShare();
@@ -138,6 +142,11 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
     const frame = isSharing
       ? captureFrame()
       : shouldCaptureCamera(transcript) ? captureLocalFrame() : null;
+    // カメラフレームを送信したときは視覚フィードバックを表示
+    if (frame && !isSharing) {
+      setCameraFlashing(true);
+      setTimeout(() => setCameraFlashing(false), 1500);
+    }
     // sendTranscript は下で定義されるが、この callback は呼ばれる時点では定義済み
     sendTranscript(transcript, frame ?? undefined);
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -155,7 +164,6 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
   // isProcessing → ブリッジ state に同期 (useMeeting に渡すため)
   useEffect(() => {
     setIsProcessingBridge(isProcessing);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProcessing]);
 
   // AI 発話中は音声認識を停止し、終了後に再開
@@ -379,7 +387,7 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
           {/* ローカルカメラ */}
           {/* Chime SDK が bindVideoElement で video 要素の style.transform を直接上書きするため、
               mirror 用の transform はラッパー div に適用し Chime の干渉を避ける */}
-          <div style={s.videoCard}>
+          <div style={{ ...s.videoCard, border: cameraFlashing ? '3px solid #f59e0b' : undefined, transition: 'border-color 0.3s' }}>
             <div style={{ width: '100%', height: '100%', transform: isDummyCamera ? 'scaleX(-1)' : 'none' }}>
               <video
                 ref={localVideoRef as RefObject<HTMLVideoElement>}
@@ -568,6 +576,13 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
         </div>
       )}
 
+      {/* 音声バッファ通知バナー (AI 処理中に発話を受け付けたとき) */}
+      {pendingText && isProcessing && !showSilenceConfirm && (
+        <div style={{ background: 'rgba(245,158,11,0.12)', borderTop: '1px solid rgba(245,158,11,0.3)', padding: '5px 16px', fontSize: 11, color: '#fbbf24', textAlign: 'center', flexShrink: 0 }}>
+          💬 音声を受け付けました — AI 応答後に確認します
+        </div>
+      )}
+
       {/* コントロールバー */}
       <div style={{ ...s.controls, flexDirection: 'column', gap: 6 }}>
         {/* 音声認識ステータスラベル */}
@@ -622,7 +637,7 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
         </button>
         <button
           style={{ ...s.btn, ...s.endBtn, background: '#dc2626', color: '#fff' }}
-          onClick={endMeeting}
+          onClick={() => setShowExitConfirm(true)}
         >
           📵 退出
         </button>
@@ -630,6 +645,51 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
       </div>
 
       <audio ref={audioRef as RefObject<HTMLAudioElement>} style={{ display: 'none' }} />
+
+      {/* ─── 退出確認ダイアログ ──────────────────────────────────────────────── */}
+      {showExitConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1001,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 16px',
+        }}>
+          <div style={{
+            background: '#1a1a2e', border: '1px solid #3b3b6a',
+            borderRadius: 16, padding: '24px 20px', maxWidth: 380, width: '100%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#a78bfa', marginBottom: 8 }}>
+              📵 会議を退出しますか？
+            </div>
+            <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.6, marginBottom: 20 }}>
+              AgentCore の会話セッションは退出後 30 分で自動消去されます。
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { setShowExitConfirm(false); endMeeting(); }}
+                style={{
+                  flex: 1, minWidth: 100,
+                  background: '#dc2626', color: '#fff', border: 'none', borderRadius: 10,
+                  padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                このまま退出
+              </button>
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                style={{
+                  flex: 1, minWidth: 100, background: '#2a2a4a', color: '#a0a0c0',
+                  border: '1px solid #3b3b6a', borderRadius: 10,
+                  padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── 3秒無音: 送信確認ダイアログ ───────────────────────────────────────── */}
       {showSilenceConfirm && (

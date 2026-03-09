@@ -20,14 +20,19 @@ function err(message: string, status = 500): APIGatewayProxyResult {
   return { statusCode: status, headers, body: JSON.stringify({ error: message }) };
 }
 
-// -------------------------------------------------------
-// 全ベクトルを取得 (ページネーション対応)
-// -------------------------------------------------------
-async function listAllVectors(userId: string): Promise<Array<{
+type VectorEntry = {
   key: string;
-  metadata: { source: string; text: string; chunkIndex: number; createdAt: string; tags?: string[] };
-}>> {
-  const vectors: Array<{ key: string; metadata: { source: string; text: string; chunkIndex: number; createdAt: string; tags?: string[] } }> = [];
+  isPublic: boolean;
+  metadata: { source: string; text: string; chunkIndex: number; createdAt: string; tags?: string[]; ownerId?: string; userId?: string; isPublic?: boolean };
+};
+
+// -------------------------------------------------------
+// ユーザーが管理できるベクトルを取得 (ページネーション対応)
+// - private: ${userId}/ プレフィックス
+// - public (自分が作成したもの): public/ プレフィックス + ownerId === userId
+// -------------------------------------------------------
+async function listUserManagedVectors(userId: string): Promise<VectorEntry[]> {
+  const vectors: VectorEntry[] = [];
   let nextToken: string | undefined;
 
   do {
@@ -40,11 +45,14 @@ async function listAllVectors(userId: string): Promise<Array<{
     }));
 
     for (const v of res.vectors ?? []) {
-      // キーが `${userId}/` で始まるものだけを対象にする
-      if (v.key?.startsWith(`${userId}/`)) {
+      const meta = v.metadata as VectorEntry['metadata'];
+      const isPrivate = v.key?.startsWith(`${userId}/`);
+      const isOwnedPublic = v.key?.startsWith('public/') && meta?.ownerId === userId;
+      if (isPrivate || isOwnedPublic) {
         vectors.push({
-          key: v.key,
-          metadata: v.metadata as { source: string; text: string; chunkIndex: number; createdAt: string; tags?: string[] },
+          key: v.key!,
+          isPublic: isOwnedPublic ?? false,
+          metadata: meta,
         });
       }
     }
@@ -63,10 +71,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   // -------------------------------------------------------
   if (event.httpMethod === 'GET') {
     try {
-      const vectors = await listAllVectors(userId);
+      const vectors = await listUserManagedVectors(userId);
 
       // source 別に集約
-      const docMap = new Map<string, { source: string; chunks: number; createdAt: string; keys: string[]; tags: string[] }>();
+      const docMap = new Map<string, { source: string; chunks: number; createdAt: string; keys: string[]; tags: string[]; isPublic: boolean }>();
       for (const v of vectors) {
         const source = v.metadata?.source ?? '不明';
         const existing = docMap.get(source);
@@ -89,6 +97,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
             createdAt: v.metadata?.createdAt ?? '',
             keys: [v.key],
             tags: [...chunkTags],
+            isPublic: v.isPublic,
           });
         }
       }
@@ -115,11 +124,20 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       let keysToDelete: string[] = [];
 
       if (directKeys && directKeys.length > 0) {
-        // キーを直接指定して削除
-        keysToDelete = directKeys.filter((k) => k.startsWith(`${userId}/`));
+        // キーを直接指定して削除: private (${userId}/) は直接許可、public/ はオーナー確認が必要
+        const publicDirectKeys = directKeys.filter((k) => k.startsWith('public/'));
+        const privateDirectKeys = directKeys.filter((k) => k.startsWith(`${userId}/`));
+        // public keys はオーナー確認のため一覧取得
+        if (publicDirectKeys.length > 0) {
+          const allVectors = await listUserManagedVectors(userId);
+          const ownedPublicKeys = new Set(allVectors.filter((v) => v.isPublic).map((v) => v.key));
+          keysToDelete = [...privateDirectKeys, ...publicDirectKeys.filter((k) => ownedPublicKeys.has(k))];
+        } else {
+          keysToDelete = privateDirectKeys;
+        }
       } else if (source) {
         // source 名で一致するチャンクを全削除
-        const vectors = await listAllVectors(userId);
+        const vectors = await listUserManagedVectors(userId);
         keysToDelete = vectors.filter((v) => v.metadata?.source === source).map((v) => v.key);
       }
 

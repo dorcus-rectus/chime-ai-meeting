@@ -87,7 +87,10 @@ async function retrieveContext(queryText: string, userId: string, topK = 3): Pro
     );
     if (!result.vectors || result.vectors.length === 0) return '';
     return result.vectors
-      .filter((v) => (v.metadata as Record<string, unknown>)?.userId === userId)
+      .filter((v) => {
+        const meta = v.metadata as { userId?: string; isPublic?: boolean } | undefined;
+        return meta?.userId === userId || meta?.isPublic === true;
+      })
       .slice(0, topK)
       .map((v, i) => {
         const meta = v.metadata as { text?: string; source?: string } | undefined;

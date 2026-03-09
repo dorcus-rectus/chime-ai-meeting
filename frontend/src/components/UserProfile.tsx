@@ -135,7 +135,7 @@ interface UserInfo {
 }
 
 interface Props {
-  auth: Pick<UseAuthReturn, 'user' | 'logout' | 'getIdToken' | 'deleteAccount' | 'error'>;
+  auth: Pick<UseAuthReturn, 'user' | 'logout' | 'getIdToken' | 'deleteAccount' | 'error' | 'changePassword'>;
   onBack: () => void;
 }
 
@@ -146,6 +146,14 @@ export function UserProfile({ auth, onBack }: Props) {
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [localError, setLocalError] = useState('');
+
+  // ─── パスワード変更 ─────────────────────────────────────────────
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState(false);
 
   // ─── 背景ぼかし preference ─────────────────────────────────────
   const [blurPreference, setBlurPreference] = useState<boolean>(() => {
@@ -250,6 +258,38 @@ export function UserProfile({ auth, onBack }: Props) {
     setSelectedMic(deviceId);
     if (testActive) await startTest(selectedCam, deviceId);
   }, [testActive, selectedCam, startTest]);
+
+  const handleChangePassword = async () => {
+    setPwError('');
+    setPwSuccess(false);
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setPwError('すべてのフィールドを入力してください');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError('新しいパスワードが一致しません');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPwError('パスワードは 8 文字以上で設定してください');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await auth.changePassword(oldPassword, newPassword);
+      setPwSuccess(true);
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'パスワードの変更に失敗しました';
+      setPwError(msg.includes('Incorrect') || msg.includes('NotAuthorizedException')
+        ? '現在のパスワードが正しくありません'
+        : msg);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
   const displayError = localError || auth.error;
 
@@ -422,6 +462,62 @@ export function UserProfile({ auth, onBack }: Props) {
               </div>
             </>
           )}
+        </div>
+
+        {/* パスワード変更 */}
+        <div style={s.section}>
+          <div style={s.sectionTitle}>パスワード変更</div>
+          <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.5 }}>
+            8文字以上、大文字・小文字・数字・記号を含めてください
+          </div>
+          {pwError && <div style={{ ...s.errorBox, fontSize: 12 }}>{pwError}</div>}
+          {pwSuccess && (
+            <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 8, padding: '8px 12px', color: '#6ee7b7', fontSize: 12 }}>
+              ✅ パスワードを変更しました
+            </div>
+          )}
+          <input
+            style={s.confirmInput}
+            type="password"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            placeholder="現在のパスワード"
+            autoComplete="current-password"
+          />
+          <input
+            style={s.confirmInput}
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="新しいパスワード"
+            autoComplete="new-password"
+          />
+          <input
+            style={s.confirmInput}
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="新しいパスワード（確認）"
+            autoComplete="new-password"
+          />
+          <button
+            style={{
+              width: '100%',
+              padding: '10px',
+              background: changingPassword ? 'rgba(102,126,234,0.2)' : 'rgba(102,126,234,0.25)',
+              color: '#a78bfa',
+              border: '1px solid rgba(102,126,234,0.4)',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: changingPassword ? 'not-allowed' : 'pointer',
+              opacity: changingPassword ? 0.6 : 1,
+            }}
+            onClick={handleChangePassword}
+            disabled={changingPassword}
+          >
+            {changingPassword ? '変更中...' : 'パスワードを変更する'}
+          </button>
         </div>
 
         {/* ログアウト */}

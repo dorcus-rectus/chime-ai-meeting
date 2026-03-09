@@ -74,11 +74,12 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
 
   for (const record of event.Records) {
     try {
-      const { content, source, userId, tags = [] } = JSON.parse(record.body) as {
+      const { content, source, userId, tags = [], isPublic = false } = JSON.parse(record.body) as {
         content: string;
         source: string;
         userId: string;
         tags?: string[];
+        isPublic?: boolean;
       };
 
       if (!content?.trim()) {
@@ -97,10 +98,12 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
       // 埋め込みベクトル生成 (同時実行数 5 でスロットリング対策)
       const EMBED_CONCURRENCY = 5;
       const createdAt = new Date().toISOString();
+      // isPublic = true の場合はキーを public/ プレフィックスにし、ownerId を metadata に含める
+      const keyPrefix = isPublic ? 'public' : userId;
       const vectors: Array<{
         key: string;
         data: { float32: number[] };
-        metadata: { text: string; source: string; userId: string; chunkIndex: number; createdAt: string; tags?: string[] };
+        metadata: { text: string; source: string; userId: string; ownerId: string; isPublic: boolean; chunkIndex: number; createdAt: string; tags?: string[] };
       }> = new Array(chunks.length);
 
       for (let i = 0; i < chunks.length; i += EMBED_CONCURRENCY) {
@@ -109,10 +112,10 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
         embeddings.forEach((embedding, j) => {
           const idx = i + j;
           vectors[idx] = {
-            key: `${userId}/${crypto.randomUUID()}`,
+            key: `${keyPrefix}/${crypto.randomUUID()}`,
             data: { float32: embedding },
             // S3 Vectors は空配列を metadata に許容しないため tags が空の場合は省略する
-            metadata: { text: chunks[idx], source, userId, chunkIndex: idx, createdAt, ...(tags.length > 0 ? { tags } : {}) },
+            metadata: { text: chunks[idx], source, userId, ownerId: userId, isPublic, chunkIndex: idx, createdAt, ...(tags.length > 0 ? { tags } : {}) },
           };
         });
       }

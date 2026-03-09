@@ -90,6 +90,7 @@ export function DocumentUpload({ getIdToken }: Props) {
   const [content, setContent] = useState('');
   const [source, setSource] = useState('');
   const [tagsInput, setTagsInput] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -127,15 +128,27 @@ export function DocumentUpload({ getIdToken }: Props) {
     e.preventDefault();
     if (!content.trim()) return;
 
+    // クライアントサイドのサイズバリデーション (250KB 上限)
+    const tags = tagsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+    const sizeBytes = new TextEncoder().encode(
+      JSON.stringify({ content: content.trim(), source: source.trim() || '未設定', tags, isPublic }),
+    ).length;
+    if (sizeBytes > 250_000) {
+      setResult({
+        type: 'error',
+        message: `❌ テキストが大きすぎます（現在約 ${Math.round(sizeBytes / 1024)} KB / 上限 250 KB）。分割して登録してください`,
+      });
+      return;
+    }
+
     setIsUploading(true);
     setResult(null);
 
     try {
       const token = await getIdToken();
-      const tags = tagsInput
-        .split(',')
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
       const res = await fetch(`${API_URL}/documents`, {
         method: 'POST',
         headers: {
@@ -146,6 +159,7 @@ export function DocumentUpload({ getIdToken }: Props) {
           content: content.trim(),
           source: source.trim() || '未設定',
           ...(tags.length > 0 ? { tags } : {}),
+          isPublic,
         }),
       });
 
@@ -215,6 +229,15 @@ export function DocumentUpload({ getIdToken }: Props) {
           placeholder="AI に参照させたいテキストを貼り付けるか、ファイルから読み込んでください..."
           required
         />
+        <span style={{ fontSize: 10, color: '#4a4a7a' }}>最大 250 KB</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#a0a0c0', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+          />
+          公開する（全ユーザーの AI が参照可能）
+        </label>
         <button style={s.btn} type="submit" disabled={isUploading || isExtracting || !content.trim()}>
           {isUploading ? '登録中...' : 'インデックス登録'}
         </button>

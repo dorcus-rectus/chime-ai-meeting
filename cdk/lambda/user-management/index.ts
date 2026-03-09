@@ -5,15 +5,19 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { S3VectorsClient, ListVectorsCommand, DeleteVectorsCommand } from '@aws-sdk/client-s3vectors';
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const REGION = process.env.REGION ?? 'ap-northeast-1';
 const USER_POOL_ID = process.env.USER_POOL_ID!;
 const CONVERSATION_TABLE = process.env.CONVERSATION_TABLE!;
 const USAGE_TABLE = process.env.USAGE_TABLE!;
+const VECTOR_BUCKET_NAME = process.env.VECTOR_BUCKET_NAME!;
+const VECTOR_INDEX_NAME = process.env.VECTOR_INDEX_NAME ?? 'documents';
 
 const cognitoClient = new CognitoIdentityProviderClient({ region: REGION });
 const ddbClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION }));
+const s3VectorsClient = new S3VectorsClient({ region: REGION });
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -65,6 +69,46 @@ async function deleteUserData(userId: string): Promise<void> {
   }
 
   await Promise.all(batches);
+}
+
+// -------------------------------------------------------
+// ユーザーの S3 Vectors データを削除 (private + 所有する public)
+// -------------------------------------------------------
+async function deleteUserVectors(userId: string): Promise<void> {
+  const keysToDelete: string[] = [];
+  let nextToken: string | undefined;
+
+  do {
+    const res = await s3VectorsClient.send(new ListVectorsCommand({
+      vectorBucketName: VECTOR_BUCKET_NAME,
+      indexName: VECTOR_INDEX_NAME,
+      returnMetadata: true,
+      returnData: false,
+      ...(nextToken ? { nextToken } : {}),
+    }));
+
+    for (const v of res.vectors ?? []) {
+      const isPrivate = v.key?.startsWith(`${userId}/`);
+      const meta = v.metadata as { ownerId?: string } | undefined;
+      const isOwnedPublic = v.key?.startsWith('public/') && meta?.ownerId === userId;
+      if (isPrivate || isOwnedPublic) {
+        keysToDelete.push(v.key!);
+      }
+    }
+    nextToken = res.nextToken;
+  } while (nextToken);
+
+  if (keysToDelete.length === 0) return;
+
+  const BATCH_SIZE = 25;
+  for (let i = 0; i < keysToDelete.length; i += BATCH_SIZE) {
+    await s3VectorsClient.send(new DeleteVectorsCommand({
+      vectorBucketName: VECTOR_BUCKET_NAME,
+      indexName: VECTOR_INDEX_NAME,
+      keys: keysToDelete.slice(i, i + BATCH_SIZE),
+    }));
+  }
+  console.log(`S3 Vectors: ${keysToDelete.length} 件削除 (userId: ${userId})`);
 }
 
 // -------------------------------------------------------
@@ -137,6 +181,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       // 2. DynamoDB のユーザーデータを削除 (非同期・失敗しても続行)
       deleteUserData(userId).catch((err) =>
         console.error('DynamoDB ユーザーデータ削除エラー:', err),
+      );
+      // 3. S3 Vectors のユーザーデータを削除 (非同期・失敗しても続行)
+      deleteUserVectors(userId).catch((err) =>
+        console.error('S3 Vectors ユーザーデータ削除エラー:', err),
       );
 
       return {

@@ -6,6 +6,7 @@ import {
   confirmSignUp,
   getCurrentUser,
   fetchAuthSession,
+  updatePassword,
   type AuthUser,
 } from 'aws-amplify/auth';
 import { API_URL } from '../config';
@@ -22,6 +23,7 @@ export interface UseAuthReturn {
   confirmRegistration: (email: string, code: string) => Promise<void>;
   getIdToken: () => Promise<string>;
   deleteAccount: () => Promise<void>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }
 
 export function useAuth(): UseAuthReturn {
@@ -122,5 +124,9 @@ export function useAuth(): UseAuthReturn {
     }
   }, [getIdToken]);
 
-  return { user, status, error, login, logout, register, confirmRegistration, getIdToken, deleteAccount };
+  const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
+    await updatePassword({ oldPassword, newPassword });
+  }, []);
+
+  return { user, status, error, login, logout, register, confirmRegistration, getIdToken, deleteAccount, changePassword };
 }
