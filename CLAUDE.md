@@ -333,3 +333,30 @@ git push codecommit::ap-northeast-1://YOUR_SSO_PROFILE@chime-ai-meeting main
 - **マイクボタン4状態**: `isMuted` → 赤 `#ef4444` / `isProcessing` → 琥珀 `#f59e0b` / `isSpeaking` → 暗灰色 `#2a2a4a` / 聴取中 → シアン `#06b6d4`。`isProcessing || isSpeaking` 時は `opacity: 0.6` + `cursor: not-allowed`
 - **ぼかし preference の localStorage 保存**: `UserProfile.tsx` の「映像設定」セクションで `localStorage.setItem('blurPreference', 'on'/'off')` を保存。`useMeeting` の `startMeeting` 内 `BackgroundBlurVideoFrameProcessor.isSupported().then()` で `localStorage.getItem('blurPreference') === 'on'` を確認して自動適用。`selectedDeviceIdRef` で非同期コールバック内のデバイス ID を参照する
 - **Playwright E2E テストの helpers**: `frontend/e2e/helpers/auth.ts` に `login/signup/deleteAccount`、`frontend/e2e/helpers/meeting.ts` に `enterMeetingRoom/waitForAIResponse/uploadRAGText` を定義。新しい spec ファイル (`meeting-components.spec.ts`, `rag-security.spec.ts`, `rag-filetypes.spec.ts`, `performance.spec.ts`) はこれらを import して使う
+
+---
+
+## Git リモート運用ルール
+
+本プロジェクトには 2 つの git リモートがある。
+
+| リモート名 | URL | 用途 |
+|-----------|-----|------|
+| `codecommit` | `codecommit::ap-northeast-1://...@chime-ai-meeting` | プライベートバックアップ。全ファイルをプッシュ |
+| `github` | `https://github.com/dorcus-rectus/chime-ai-meeting.git` | 外部公開用。除外ファイルあり |
+
+### GitHub への自動プッシュ禁止
+
+**`git push github` は、ユーザーから明示的に「GitHub にプッシュしてください」と指示された場合のみ実行すること。**
+通常のコミット＆プッシュ依頼は `codecommit` のみに対して行う。
+
+### GitHub 公開除外ファイル
+
+GitHub にプッシュする際は以下のファイルを含めないこと（.gitignore で管理）:
+- `CLAUDE.md`（Claude Code 用ローカル設定）
+- `article.md`（記事草稿）
+- `.devcontainer/`（ローカル開発環境設定）
+- `.mcp.json` / `.mcp.json.example` / `.playwright-mcp/`（MCP 関連）
+- `package-lock.json`（ルート・cdk・frontend）
+
+GitHub へのプッシュ前には `git rm --cached` で上記ファイルのトラッキングを解除し、.gitignore の除外セクションを有効化してからプッシュすること。
