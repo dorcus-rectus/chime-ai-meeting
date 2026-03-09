@@ -354,14 +354,16 @@ describe('IAM ロール', () => {
     });
   });
 
-  test('Lambda ロールに bedrock:Converse 権限が付与されている (画面フレーム Vision 解析用)', () => {
+  test('Lambda ロールに bedrock:Converse + bedrock:InvokeModel 権限が付与されている (画面フレーム Vision 解析用)', () => {
     template.hasResourceProperties('AWS::IAM::Role', {
       Policies: Match.arrayWith([
         Match.objectLike({
           PolicyName: 'BedrockVisionPolicy',
           PolicyDocument: {
             Statement: Match.arrayWith([
-              Match.objectLike({ Action: 'bedrock:Converse' }),
+              Match.objectLike({
+                Action: Match.arrayWith(['bedrock:Converse', 'bedrock:InvokeModel']),
+              }),
             ]),
           },
         }),

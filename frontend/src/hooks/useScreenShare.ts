@@ -45,9 +45,18 @@ export function useScreenShare(): UseScreenShareReturn {
 
       streamRef.current = stream;
 
-      // プレビュー用 <video> 要素に接続
+      // プレビュー用 <video> 要素に接続し、フレームが届くまで待機してから isSharing を true にする
+      // (loadeddata より前に isSharing = true にすると captureFrame が videoWidth === 0 で null を返す)
       if (screenVideoRef.current) {
         screenVideoRef.current.srcObject = stream;
+        await new Promise<void>((resolve) => {
+          const video = screenVideoRef.current!;
+          if (video.videoWidth > 0) { resolve(); return; }
+          const onReady = () => { video.removeEventListener('loadeddata', onReady); resolve(); };
+          video.addEventListener('loadeddata', onReady);
+          // フォールバック: 2 秒経っても loadeddata が来なければ続行
+          setTimeout(resolve, 2000);
+        });
         screenVideoRef.current.play().catch(console.error);
       }
 

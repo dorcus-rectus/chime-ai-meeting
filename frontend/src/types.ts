@@ -36,6 +36,7 @@ export interface AIChatResponse {
   text: string;
   audio: string; // Base64 エンコード MP3
   ragUsed: boolean;
+  visionError?: string; // Vision (Converse API) 失敗時のエラー詳細
 }
 
 /** チャット入力時の添付ファイル */

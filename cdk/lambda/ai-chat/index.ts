@@ -93,34 +93,50 @@ async function retrieveContext(queryText: string, topK = 3): Promise<string> {
 // -------------------------------------------------------
 async function analyzeScreenFrame(frameBase64: string, userQuestion: string): Promise<string> {
   const question = userQuestion.trim() || 'この画面について説明してください';
-  const response = await bedrockClient.send(
-    new ConverseCommand({
-      modelId: VISION_MODEL_ID,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              image: {
-                format: 'jpeg',
-                source: { bytes: Buffer.from(frameBase64, 'base64') },
+  try {
+    const response = await bedrockClient.send(
+      new ConverseCommand({
+        modelId: VISION_MODEL_ID,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                image: {
+                  format: 'jpeg',
+                  source: { bytes: Buffer.from(frameBase64, 'base64') },
+                },
               },
-            },
-            {
-              text: `次の質問に、画面の内容を踏まえて日本語で回答してください: ${question}`,
-            },
-          ],
-        },
-      ],
-      inferenceConfig: { maxTokens: 1000 },
-    }),
-  );
-  const content = response.output?.message?.content ?? [];
-  return content
-    .filter((b): b is { text: string } => typeof (b as Record<string, unknown>).text === 'string')
-    .map((b) => b.text)
-    .join('')
-    .trim() || 'すみません、画面を分析できませんでした。';
+              {
+                text: `次の質問に、画面の内容を踏まえて日本語で回答してください: ${question}`,
+              },
+            ],
+          },
+        ],
+        inferenceConfig: { maxTokens: 1000 },
+      }),
+    );
+    const content = response.output?.message?.content ?? [];
+    return content
+      .filter((b): b is { text: string } => typeof (b as Record<string, unknown>).text === 'string')
+      .map((b) => b.text)
+      .join('')
+      .trim() || 'すみません、画面を分析できませんでした。';
+  } catch (err) {
+    // Vision 解析失敗: エラーを上位に伝搬して詳細を記録する
+    // (retrieveContext と異なり、Vision 失敗は呼び出し元で判断する)
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error('Vision 解析エラー (Converse API):', msg);
+    throw new VisionError(msg);
+  }
+}
+
+// Vision 専用エラークラス (AgentCore エラーと区別するため)
+class VisionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VisionError';
+  }
 }
 
 // -------------------------------------------------------
@@ -221,27 +237,44 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // --- 1. Vision または RAG でコンテキストを取得 ---
-    // 画面フレームあり: Converse API (Vision) で画像解析 → テキスト結果を AgentCore に渡す
+    // --- 1. Vision と RAG を並列実行してコンテキストを取得 ---
+    // 画面フレームあり: Converse API (Vision) で画像解析 + S3 Vectors RAG を同時実行
     //   ※ InvokeAgent の sessionState.files は JPEG 非対応のため Converse API を使用
-    // 画面フレームなし: S3 Vectors で関連ドキュメントを RAG 検索
+    // 画面フレームなし: S3 Vectors RAG のみ実行
     let frameAnalysis = '';
     let ragContext = '';
+    let visionError = '';
     if (frame) {
-      frameAnalysis = await analyzeScreenFrame(frame, text);
+      const [visionResult, ragResult] = await Promise.allSettled([
+        analyzeScreenFrame(frame, text),
+        retrieveContext(text),
+      ]);
+      if (visionResult.status === 'fulfilled') {
+        frameAnalysis = visionResult.value;
+      } else {
+        // Vision 失敗: エラー詳細を保持し、RAG のみで応答を継続
+        visionError = visionResult.reason instanceof Error
+          ? `${visionResult.reason.name}: ${visionResult.reason.message}`
+          : String(visionResult.reason);
+        console.error('Vision 失敗のため RAG のみで継続:', visionError);
+      }
+      ragContext = ragResult.status === 'fulfilled' ? ragResult.value : '';
     } else {
       ragContext = await retrieveContext(text);
     }
 
     // inputText の組み立て (XML タグでユーザー入力を分離 → プロンプトインジェクション対策):
-    //   - 画面共有あり: Converse で解析した内容 + ユーザー発話
-    //   - RAG コンテキストあり: 参考情報 + ユーザー発話
+    //   - 画面共有 + RAG: 両方のコンテキストを提供
+    //   - 画面共有のみ: Converse で解析した内容 + ユーザー発話
+    //   - RAG のみ: 参考情報 + ユーザー発話
     //   - それ以外: ユーザー発話のみ
-    const inputText = frameAnalysis
-      ? `[画面共有の解析結果]\n${frameAnalysis}\n\nユーザーの発言:\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
-      : ragContext
-        ? `[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言を元に回答してください。\n<user_input>\n${text}\n</user_input>`
-        : `<user_input>\n${text}\n</user_input>`;
+    const inputText = frameAnalysis && ragContext
+      ? `[画面共有の解析結果]\n${frameAnalysis}\n\n[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言:\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
+      : frameAnalysis
+        ? `[画面共有の解析結果]\n${frameAnalysis}\n\nユーザーの発言:\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
+        : ragContext
+          ? `[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言を元に回答してください。\n<user_input>\n${text}\n</user_input>`
+          : `<user_input>\n${text}\n</user_input>`;
 
     // --- 2. Bedrock AgentCore Runtime で AI 応答を生成 ---
     // sessionId = Chime MeetingId (UUID形式) → AgentCore がセッション単位で会話履歴を管理
@@ -277,6 +310,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         text: aiText,
         audio: audioBase64,
         ragUsed: ragContext.length > 0,
+        ...(visionError ? { visionError } : {}),
       }),
     };
   } catch (error) {

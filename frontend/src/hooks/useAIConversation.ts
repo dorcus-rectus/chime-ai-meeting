@@ -143,6 +143,11 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
         }
 
         const data = (await response.json()) as AIChatResponse;
+        if (data.visionError) {
+          // Vision (Converse API) が失敗した場合: RAG のみで応答を返しているため
+          // コンソールにエラー詳細を出力してデバッグを支援する
+          console.warn('Vision 解析失敗 (RAG フォールバックで応答):', data.visionError);
+        }
         setMessages((prev) => [
           ...prev,
           { role: 'assistant', content: data.text, timestamp: Date.now() },
