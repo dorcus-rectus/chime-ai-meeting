@@ -90,13 +90,3 @@ logs/
 *.temp
 .cache/
 
-# ─── GitHub 公開除外（ローカル固有・MCP・記事草稿）────────────────────────────
-CLAUDE.md
-article.md
-.devcontainer/
-.mcp.json
-.mcp.json.example
-.playwright-mcp/
-package-lock.json
-cdk/package-lock.json
-frontend/package-lock.json
