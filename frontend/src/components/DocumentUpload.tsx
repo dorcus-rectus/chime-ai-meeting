@@ -89,6 +89,7 @@ async function extractPdfText(file: File): Promise<string> {
 export function DocumentUpload({ getIdToken }: Props) {
   const [content, setContent] = useState('');
   const [source, setSource] = useState('');
+  const [tagsInput, setTagsInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -131,6 +132,10 @@ export function DocumentUpload({ getIdToken }: Props) {
 
     try {
       const token = await getIdToken();
+      const tags = tagsInput
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
       const res = await fetch(`${API_URL}/documents`, {
         method: 'POST',
         headers: {
@@ -140,6 +145,7 @@ export function DocumentUpload({ getIdToken }: Props) {
         body: JSON.stringify({
           content: content.trim(),
           source: source.trim() || '未設定',
+          ...(tags.length > 0 ? { tags } : {}),
         }),
       });
 
@@ -155,6 +161,7 @@ export function DocumentUpload({ getIdToken }: Props) {
       });
       setContent('');
       setSource('');
+      setTagsInput('');
     } catch (err) {
       setResult({
         type: 'error',
@@ -175,6 +182,13 @@ export function DocumentUpload({ getIdToken }: Props) {
           value={source}
           onChange={(e) => setSource(e.target.value)}
           placeholder="出典名 (例: 社内FAQ、製品仕様書)"
+        />
+        <input
+          style={s.input}
+          type="text"
+          value={tagsInput}
+          onChange={(e) => setTagsInput(e.target.value)}
+          placeholder="タグ (カンマ区切り、例: 技術,FAQ,2024)"
         />
         <div style={s.row}>
           <button

@@ -25,9 +25,9 @@ function err(message: string, status = 500): APIGatewayProxyResult {
 // -------------------------------------------------------
 async function listAllVectors(userId: string): Promise<Array<{
   key: string;
-  metadata: { source: string; text: string; chunkIndex: number; createdAt: string };
+  metadata: { source: string; text: string; chunkIndex: number; createdAt: string; tags?: string[] };
 }>> {
-  const vectors: Array<{ key: string; metadata: { source: string; text: string; chunkIndex: number; createdAt: string } }> = [];
+  const vectors: Array<{ key: string; metadata: { source: string; text: string; chunkIndex: number; createdAt: string; tags?: string[] } }> = [];
   let nextToken: string | undefined;
 
   do {
@@ -44,7 +44,7 @@ async function listAllVectors(userId: string): Promise<Array<{
       if (v.key?.startsWith(`${userId}/`)) {
         vectors.push({
           key: v.key,
-          metadata: v.metadata as { source: string; text: string; chunkIndex: number; createdAt: string },
+          metadata: v.metadata as { source: string; text: string; chunkIndex: number; createdAt: string; tags?: string[] },
         });
       }
     }
@@ -66,10 +66,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       const vectors = await listAllVectors(userId);
 
       // source 別に集約
-      const docMap = new Map<string, { source: string; chunks: number; createdAt: string; keys: string[] }>();
+      const docMap = new Map<string, { source: string; chunks: number; createdAt: string; keys: string[]; tags: string[] }>();
       for (const v of vectors) {
         const source = v.metadata?.source ?? '不明';
         const existing = docMap.get(source);
+        const chunkTags = v.metadata?.tags ?? [];
         if (existing) {
           existing.chunks += 1;
           existing.keys.push(v.key);
@@ -77,12 +78,17 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           if (v.metadata?.createdAt && v.metadata.createdAt > existing.createdAt) {
             existing.createdAt = v.metadata.createdAt;
           }
+          // タグを重複排除してマージ
+          for (const tag of chunkTags) {
+            if (!existing.tags.includes(tag)) existing.tags.push(tag);
+          }
         } else {
           docMap.set(source, {
             source,
             chunks: 1,
             createdAt: v.metadata?.createdAt ?? '',
             keys: [v.key],
+            tags: [...chunkTags],
           });
         }
       }

@@ -3,6 +3,8 @@ import {
   ConsoleLogger,
   DefaultDeviceController,
   DefaultMeetingSession,
+  DefaultVideoTransformDevice,
+  BackgroundBlurVideoFrameProcessor,
   LogLevel,
   MeetingSessionConfiguration,
   VoiceFocusDeviceTransformer,
@@ -13,6 +15,7 @@ import { API_URL } from '../config';
 import type { MeetingResponse } from '../types';
 
 export type MeetingStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
+export type NetworkQuality = 'unknown' | 'good' | 'poor';
 
 export const DUMMY_DEVICE_ID = 'dummy';
 
@@ -22,6 +25,9 @@ export interface UseMeetingReturn {
   isMuted: boolean;
   isVideoOn: boolean;
   isDummyCamera: boolean;
+  isBlurEnabled: boolean;
+  isBlurSupported: boolean;
+  networkQuality: NetworkQuality;
   videoDevices: MediaDeviceInfo[];
   selectedDeviceId: string;
   resolution: { width: number; height: number };
@@ -37,6 +43,7 @@ export interface UseMeetingReturn {
   endMeeting: () => void;
   toggleMute: () => void;
   toggleVideo: () => void;
+  toggleBackgroundBlur: () => Promise<void>;
   changeCamera: (deviceId: string) => Promise<void>;
   changeResolution: (width: number, height: number) => Promise<void>;
   startContentShare: (stream: MediaStream) => Promise<void>;
@@ -102,12 +109,21 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   const [pendingText, setPendingText] = useState('');
   /** true: 「AIに送る / 続ける」確認ダイアログ表示中 */
   const [showSilenceConfirm, setShowSilenceConfirm] = useState(false);
+  const [isBlurEnabled, setIsBlurEnabled] = useState(false);
+  const [isBlurSupported, setIsBlurSupported] = useState(false);
+  const [networkQuality, setNetworkQuality] = useState<NetworkQuality>('unknown');
 
   const sessionRef = useRef<DefaultMeetingSession | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dummyStreamRef = useRef<MediaStream | null>(null);
+  const loggerRef = useRef<ConsoleLogger | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blurProcessorRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const blurTransformDeviceRef = useRef<any>(null);
+  const isBlurEnabledRef = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const speechRecognitionRef = useRef<any>(null);
   // Chime SDK Transcribe が実際に結果を返した場合は Web Speech API を停止する
@@ -287,6 +303,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
         setMeetingId(meeting.MeetingId);
 
         const logger = new ConsoleLogger('ChimeMeeting', LogLevel.WARN);
+        loggerRef.current = logger;
         const deviceController = new DefaultDeviceController(logger);
         const configuration = new MeetingSessionConfiguration(meeting, attendee);
         const session = new DefaultMeetingSession(configuration, logger, deviceController);
@@ -363,6 +380,16 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
             }
           },
           audioVideoDidStop: () => setStatus('ended'),
+          connectionDidBecomePoor: () => setNetworkQuality('poor'),
+          connectionDidBecomeGood: () => setNetworkQuality('good'),
+          connectionDidSuggestStopVideo: () => setNetworkQuality('poor'),
+        });
+
+        // 背景ぼかし対応状況を非同期で確認
+        BackgroundBlurVideoFrameProcessor.isSupported().then((supported) => {
+          setIsBlurSupported(supported);
+        }).catch(() => {
+          setIsBlurSupported(false);
         });
 
         session.audioVideo.transcriptionController?.subscribeToTranscriptEvent(handleTranscriptEvent);
@@ -429,13 +456,39 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
         dummyStreamRef.current = null;
       }
 
+      // ぼかし用 transform device を先に停止
+      if (blurTransformDeviceRef.current) {
+        try { await blurTransformDeviceRef.current.stop(); } catch { /* 無視 */ }
+        blurTransformDeviceRef.current = null;
+      }
+
       if (deviceId === DUMMY_DEVICE_ID) {
         const stream = createDummyStream(resolution.width, resolution.height);
         dummyStreamRef.current = stream;
         await session.audioVideo.startVideoInput(stream as unknown as string);
         setIsDummyCamera(true);
+        // ダミーカメラではぼかし無効
+        if (isBlurEnabledRef.current) {
+          if (blurProcessorRef.current) {
+            try { await blurProcessorRef.current.destroy(); } catch { /* 無視 */ }
+            blurProcessorRef.current = null;
+          }
+          isBlurEnabledRef.current = false;
+          setIsBlurEnabled(false);
+        }
       } else {
-        await session.audioVideo.startVideoInput(deviceId);
+        if (isBlurEnabledRef.current && blurProcessorRef.current && loggerRef.current) {
+          // ぼかし ON のままカメラ切り替え: 新しいデバイスで transform device を再作成
+          const transformDevice = new DefaultVideoTransformDevice(
+            loggerRef.current,
+            deviceId,
+            [blurProcessorRef.current],
+          );
+          blurTransformDeviceRef.current = transformDevice;
+          await session.audioVideo.startVideoInput(transformDevice);
+        } else {
+          await session.audioVideo.startVideoInput(deviceId);
+        }
         setIsDummyCamera(false);
         if (!isVideoOn) {
           session.audioVideo.startLocalVideoTile();
@@ -494,6 +547,55 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     return canvas.toDataURL('image/jpeg', quality).split(',')[1] ?? null;
   }, [isVideoOn, isDummyCamera]);
 
+  // -------------------------------------------------------
+  // 背景ぼかし ON/OFF 切り替え
+  // ダミーカメラ使用中・非対応ブラウザ・会議未開始時は無効
+  // -------------------------------------------------------
+  const toggleBackgroundBlur = useCallback(async () => {
+    const session = sessionRef.current;
+    if (!session || !isBlurSupported) return;
+    // ダミーカメラ時はぼかし不可 (MediaStream は VideoTransformDevice に渡せない)
+    if (isBlurEnabledRef.current === false && dummyStreamRef.current) return;
+
+    if (isBlurEnabledRef.current) {
+      // ぼかし OFF: transform device を停止してから元のデバイスに戻す
+      if (blurTransformDeviceRef.current) {
+        try { await blurTransformDeviceRef.current.stop(); } catch { /* 無視 */ }
+        blurTransformDeviceRef.current = null;
+      }
+      if (blurProcessorRef.current) {
+        try { await blurProcessorRef.current.destroy(); } catch { /* 無視 */ }
+        blurProcessorRef.current = null;
+      }
+      if (selectedDeviceId && selectedDeviceId !== DUMMY_DEVICE_ID) {
+        await session.audioVideo.startVideoInput(selectedDeviceId);
+      }
+      isBlurEnabledRef.current = false;
+      setIsBlurEnabled(false);
+    } else {
+      // ぼかし ON
+      try {
+        const processor = await BackgroundBlurVideoFrameProcessor.create();
+        if (!processor) {
+          console.warn('背景ぼかしプロセッサーの作成に失敗 (isSupported() が true でも create() が undefined を返した)');
+          return;
+        }
+        blurProcessorRef.current = processor;
+        const transformDevice = new DefaultVideoTransformDevice(
+          loggerRef.current!,
+          selectedDeviceId,
+          [processor],
+        );
+        blurTransformDeviceRef.current = transformDevice;
+        await session.audioVideo.startVideoInput(transformDevice);
+        isBlurEnabledRef.current = true;
+        setIsBlurEnabled(true);
+      } catch (err) {
+        console.warn('背景ぼかしの有効化に失敗:', err);
+      }
+    }
+  }, [isBlurSupported, selectedDeviceId]);
+
   const startContentShare = useCallback(async (stream: MediaStream) => {
     const session = sessionRef.current;
     if (!session) return;
@@ -521,6 +623,17 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
       speechRecognitionRef.current.stop();
       speechRecognitionRef.current = null;
     }
+    // 背景ぼかし クリーンアップ
+    if (blurTransformDeviceRef.current) {
+      void blurTransformDeviceRef.current.stop().catch(() => {});
+      blurTransformDeviceRef.current = null;
+    }
+    if (blurProcessorRef.current) {
+      void blurProcessorRef.current.destroy().catch(() => {});
+      blurProcessorRef.current = null;
+    }
+    isBlurEnabledRef.current = false;
+    setIsBlurEnabled(false);
     // バッファ・フラグをクリア
     pendingTextRef.current = '';
     setPendingText('');
@@ -543,6 +656,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     setMeetingId(null);
     setIsContentSharing(false);
     setIsDummyCamera(false);
+    setNetworkQuality('unknown');
     setVideoDevices([]);
     setSelectedDeviceId('');
   }, [handleTranscriptEvent]);
@@ -599,6 +713,9 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     isMuted,
     isVideoOn,
     isDummyCamera,
+    isBlurEnabled,
+    isBlurSupported,
+    networkQuality,
     videoDevices,
     selectedDeviceId,
     resolution,
@@ -612,6 +729,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     endMeeting,
     toggleMute,
     toggleVideo,
+    toggleBackgroundBlur,
     changeCamera,
     changeResolution,
     startContentShare,

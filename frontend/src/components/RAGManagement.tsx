@@ -6,6 +6,7 @@ interface RAGDocument {
   chunks: number;
   createdAt: string;
   keys: string[];
+  tags?: string[];
 }
 
 interface Props {
@@ -191,6 +192,18 @@ export function RAGManagement({ getIdToken, onBack }: Props) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={s.source}>📄 {doc.source}</div>
               <div style={s.meta}>{doc.chunks} チャンク · {formatDate(doc.createdAt)}</div>
+              {doc.tags && doc.tags.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                  {doc.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10, background: 'rgba(102,126,234,0.15)', color: '#a78bfa', border: '1px solid rgba(102,126,234,0.3)', fontWeight: 600 }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <button
               style={s.deleteBtn}

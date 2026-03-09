@@ -160,10 +160,12 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
         ]);
         setAiText(data.text);
 
+        // テキスト表示後すぐに処理完了扱いにする (音声再生完了を待たない)
+        // → 音声再生中に次の質問をチャット入力から送ることができる
+        setIsProcessing(false);
         if (data.audio) await playAudio(data.audio);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'AI との通信に失敗しました');
-      } finally {
         setIsProcessing(false);
       }
     },

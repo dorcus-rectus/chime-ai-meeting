@@ -74,10 +74,11 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
 
   for (const record of event.Records) {
     try {
-      const { content, source, userId } = JSON.parse(record.body) as {
+      const { content, source, userId, tags = [] } = JSON.parse(record.body) as {
         content: string;
         source: string;
         userId: string;
+        tags?: string[];
       };
 
       if (!content?.trim()) {
@@ -99,7 +100,7 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
       const vectors: Array<{
         key: string;
         data: { float32: number[] };
-        metadata: { text: string; source: string; userId: string; chunkIndex: number; createdAt: string };
+        metadata: { text: string; source: string; userId: string; chunkIndex: number; createdAt: string; tags: string[] };
       }> = new Array(chunks.length);
 
       for (let i = 0; i < chunks.length; i += EMBED_CONCURRENCY) {
@@ -110,7 +111,7 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
           vectors[idx] = {
             key: `${userId}/${crypto.randomUUID()}`,
             data: { float32: embedding },
-            metadata: { text: chunks[idx], source, userId, chunkIndex: idx, createdAt },
+            metadata: { text: chunks[idx], source, userId, chunkIndex: idx, createdAt, tags },
           };
         });
       }

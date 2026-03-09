@@ -36,8 +36,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 
   try {
-    const body = JSON.parse(event.body ?? '{}') as { content?: string; source?: string };
-    const { content, source = '不明なドキュメント' } = body;
+    const body = JSON.parse(event.body ?? '{}') as { content?: string; source?: string; tags?: unknown[] };
+    const { content, source = '不明なドキュメント', tags: rawTags } = body;
 
     if (!content?.trim() || content.trim().length < 10) {
       return {
@@ -54,8 +54,16 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
+    // タグのバリデーション: 最大 10 件、各 50 文字以内、文字列のみ
+    const tags: string[] = Array.isArray(rawTags)
+      ? rawTags
+          .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+          .map((t) => t.trim().slice(0, 50))
+          .slice(0, 10)
+      : [];
+
     // SQS メッセージサイズ上限は 256KB。大きいドキュメントはエラー
-    const messageBody = JSON.stringify({ content: content.trim(), source, userId });
+    const messageBody = JSON.stringify({ content: content.trim(), source, userId, tags });
     if (Buffer.byteLength(messageBody, 'utf8') > 250_000) {
       return {
         statusCode: 413,

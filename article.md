@@ -23,8 +23,11 @@
 | 画面共有フレームの AI 解析 | Bedrock AgentCore Vision (マルチモーダル) |
 | RAG (独自ドキュメント参照) | Amazon S3 Vectors + Titan Embeddings V2 |
 | RAG ドキュメント管理 | Lambda manage-documents (一覧・削除) |
+| RAG メタデータタグ | S3 Vectors メタデータフィールド + フロントエンド表示 |
 | PDF / テキストファイル登録 | pdfjs-dist でブラウザ内テキスト抽出 |
 | AI 音声応答 | Amazon Polly Neural TTS (Kazuha) |
+| **背景ぼかし** | Chime SDK BackgroundBlurVideoFrameProcessor |
+| **ネットワーク品質モニタリング** | Chime SDK AudioVideoObserver コールバック |
 | ユーザー認証・管理 | Amazon Cognito |
 | インフラのコード管理 | AWS CDK (TypeScript) + Jest (スナップショット・Fine-grained・cdk-nag) |
 | CI/CD パイプライン | AWS CodeCommit + CodePipeline + Amplify |
@@ -44,6 +47,10 @@
 - 無音検知 + 送信確認ダイアログによる音声認識 UX
 - AI アバターコンポーネント (動画 + CSS AR エフェクト)
 - **音声再生の race condition 対策** (AudioContext + playIdRef パターン)
+- **音声レスポンス改善**: `setIsProcessing` のタイミングを最適化し、AI テキストを音声再生完了前に即時表示する設計
+- **背景ぼかし機能**: `BackgroundBlurVideoFrameProcessor` + `DefaultVideoTransformDevice` の実装と TypeScript 型問題の回避方法
+- **ネットワーク品質モニタリング**: `AudioVideoObserver` の `connectionDidBecomePoor/Good` コールバックによる UI バナー表示
+- **RAG メタデータタグ**: S3 Vectors へのタグ付与・ワーカーでの伝搬・管理 API でのユニーク集約・フロントエンドでのバッジ表示
 - **Chime Transcribe 重複テキスト** の正規化・重複排除実装
 - CodeCommit + CodePipeline + Amplify による完全自動化 CI/CD パイプライン
 - Vitest 単体テスト・Playwright E2E テスト・CDK Jest (スナップショット・cdk-nag)・ESLint/Prettier によるコード品質管理
@@ -326,6 +333,161 @@ if (!navigator.mediaDevices?.getDisplayMedia) {
 const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
 ```
 
+### 背景ぼかし (BackgroundBlurVideoFrameProcessor)
+
+Chime SDK JS には **BackgroundBlurVideoFrameProcessor** が内蔵されており、追加インフラなしでカメラ映像の背景をリアルタイムにぼかせます。`DefaultVideoTransformDevice` でプロセッサをラップし、通常の `startVideoInput()` に渡すだけで有効になります。
+
+```typescript
+// frontend/src/hooks/useMeeting.ts
+import {
+  BackgroundBlurVideoFrameProcessor,
+  DefaultVideoTransformDevice,
+} from 'amazon-chime-sdk-js';
+
+// ぼかし対応チェック (WASM を必要とするため、ブラウザによっては非対応)
+const blurSupported = await BackgroundBlurVideoFrameProcessor.isSupported();
+setIsBlurSupported(blurSupported);
+```
+
+ぼかし ON/OFF の切り替えは以下のように実装します:
+
+```typescript
+const toggleBackgroundBlur = useCallback(async () => {
+  if (!isBlurSupportedRef.current) return;
+  const session = sessionRef.current;
+  if (!session) return;
+
+  if (isBlurEnabledRef.current) {
+    // ---- ぼかし OFF ----
+    if (blurTransformDeviceRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (blurTransformDeviceRef.current as any).stop?.();
+      blurTransformDeviceRef.current = null;
+    }
+    if (blurProcessorRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (blurProcessorRef.current as any).destroy?.();
+      blurProcessorRef.current = null;
+    }
+    await session.audioVideo.startVideoInput(currentDeviceIdRef.current);
+    setIsBlurEnabled(false);
+    isBlurEnabledRef.current = false;
+  } else {
+    // ---- ぼかし ON ----
+    // create() は BackgroundBlurProcessor | undefined を返す — null チェック必須
+    const processor = await BackgroundBlurVideoFrameProcessor.create();
+    if (!processor) {
+      console.warn('背景ぼかしプロセッサーの作成に失敗しました');
+      return;
+    }
+    blurProcessorRef.current = processor;
+
+    // DefaultVideoTransformDevice でプロセッサをラップ
+    const transformDevice = new DefaultVideoTransformDevice(
+      loggerRef.current!,
+      currentDeviceIdRef.current,
+      [processor as unknown as VideoFrameProcessor], // 型変換が必要
+    );
+    blurTransformDeviceRef.current = transformDevice;
+
+    // 通常のデバイス ID の代わりに transform device を渡す
+    await session.audioVideo.startVideoInput(
+      transformDevice as unknown as string,
+    );
+    setIsBlurEnabled(true);
+    isBlurEnabledRef.current = true;
+  }
+}, []);
+```
+
+:::message alert
+**`BackgroundBlurVideoFrameProcessor.create()` の戻り値は `BackgroundBlurProcessor | undefined`**
+
+型定義の都合で `create()` は `undefined` を返す可能性があります。`[processor]` として `VideoFrameProcessor[]` に渡す前に `if (!processor) return;` の null チェックが必須です。チェックを省くと TypeScript エラー:
+
+```
+Type 'BackgroundBlurProcessor | undefined' is not assignable to type 'VideoFrameProcessor'
+```
+
+が発生します。ブラウザのサポート確認 (`isSupported()`) とプロセッサの null チェックをセットで実装してください。
+:::
+
+カメラ切り替え時はぼかしトランスフォームデバイスを再作成する必要があります:
+
+```typescript
+// changeCamera 内: ぼかし有効時は transform device ごと再作成
+if (isBlurEnabledRef.current) {
+  const processor = await BackgroundBlurVideoFrameProcessor.create();
+  if (processor) {
+    const transformDevice = new DefaultVideoTransformDevice(
+      loggerRef.current!, newDeviceId, [processor],
+    );
+    blurTransformDeviceRef.current = transformDevice;
+    await session.audioVideo.startVideoInput(transformDevice as unknown as string);
+  }
+} else {
+  await session.audioVideo.startVideoInput(newDeviceId);
+}
+```
+
+ダミーカメラ (キャンバス描画) にはぼかしを適用できないため、ダミーカメラ検出時は自動的にぼかしを解除します。
+
+### ネットワーク品質モニタリング (AudioVideoObserver)
+
+Chime SDK の `AudioVideoObserver` は接続品質の変化を通知するコールバックを提供します。`connectionDidBecomePoor` / `connectionDidBecomeGood` を実装することで、ネットワーク不安定時にユーザーへ警告バナーを表示できます。
+
+```typescript
+// 型定義
+export type NetworkQuality = 'unknown' | 'good' | 'poor';
+
+// useMeeting.ts の startMeeting 内で observer を拡張
+const [networkQuality, setNetworkQuality] = useState<NetworkQuality>('unknown');
+
+const observer = {
+  videoTileDidUpdate: (tileState: VideoTileState) => { /* ... */ },
+
+  // ネットワーク品質コールバック
+  connectionDidBecomePoor: () => {
+    console.warn('ネットワーク品質が低下しました');
+    setNetworkQuality('poor');
+  },
+  connectionDidBecomeGood: () => {
+    setNetworkQuality('good');
+  },
+  connectionDidSuggestStopVideo: () => {
+    // 帯域不足でビデオ停止を推奨 — poor 扱いにする
+    setNetworkQuality('poor');
+  },
+};
+session.audioVideo.addObserver(observer);
+```
+
+`MeetingRoom.tsx` では `networkQuality` を使ってバナーを条件表示します:
+
+```tsx
+{networkQuality === 'poor' && (
+  <div style={{
+    background: 'rgba(245,158,11,0.15)',
+    borderBottom: '1px solid rgba(245,158,11,0.4)',
+    padding: '6px 16px',
+    color: '#fbbf24',
+    fontSize: 12,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+  }}>
+    ⚠️ ネットワーク接続が不安定です。映像をオフにすると改善することがあります。
+  </div>
+)}
+```
+
+また、ヘッダーにもネットワーク品質のステータスバッジを表示します。会議終了時は `'unknown'` にリセットします。
+
+```typescript
+// endMeeting 内でリセット
+setNetworkQuality('unknown');
+```
+
 ---
 
 ## 2. Amazon Bedrock AgentCore
@@ -341,8 +503,10 @@ Amazon Bedrock AgentCore は、会話 AI のセッション管理・ツール連
 | 会話履歴 | Lambda が DynamoDB で自前管理 | AgentCore が sessionId で自動管理 |
 | マルチターン | messages 配列を毎回送信 | sessionId を指定するだけ |
 | レスポンス形式 | JSON (同期) | AsyncIterable (ストリーミング) |
-| Vision (画像入力) | InvokeModelCommand に直接渡す | sessionState.files に添付 |
+| Vision (画像入力) | ConverseCommand に直接渡す | ConverseCommand で解析後テキストを InvokeAgent に渡す ※1 |
 | コード量 | 多い (DynamoDB の読み書きが必要) | 少ない |
+
+※1 `InvokeAgent` の `sessionState.files` は `useCase: 'CHAT'` でテキスト系ファイルのみ対応。JPEG を渡すと `ValidationException` になる。画像は Converse API で解析してテキストに変換し、その結果を `inputText` に含めて `InvokeAgent` へ渡す設計。
 
 ### CDK での AgentCore 定義
 
@@ -422,38 +586,54 @@ import {
   BedrockAgentRuntimeClient,
   InvokeAgentCommand,
 } from '@aws-sdk/client-bedrock-agent-runtime';
+import { BedrockRuntimeClient, InvokeModelCommand, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
 const agentClient = new BedrockAgentRuntimeClient({ region: 'ap-northeast-1' });
+const bedrockClient = new BedrockRuntimeClient({ region: 'ap-northeast-1' });
 
-async function invokeAgent(
-  sessionId: string,
-  inputText: string,
-  frameBase64?: string,  // 画面共有フレーム (Base64 JPEG)
-): Promise<string> {
+// Vision 専用エラークラス (AgentCore エラーと区別するため)
+class VisionError extends Error {
+  constructor(message: string) { super(message); this.name = 'VisionError'; }
+}
+
+// Step 1: Converse API で画像を解析してテキストに変換
+// ※ InvokeAgent の sessionState.files は useCase: 'CHAT' で JPEG 非対応 (ValidationException)
+// ※ jp.* 推論プロファイルで Converse を使う場合 bedrock:Converse + bedrock:InvokeModel の両権限が必要
+async function analyzeScreenFrame(frameBase64: string, userQuestion: string): Promise<string> {
+  const question = userQuestion.trim() || 'この画面について説明してください';
+  try {
+    const response = await bedrockClient.send(
+      new ConverseCommand({
+        modelId: 'jp.anthropic.claude-sonnet-4-6',
+        messages: [{
+          role: 'user',
+          content: [
+            { image: { format: 'jpeg', source: { bytes: Buffer.from(frameBase64, 'base64') } } },
+            { text: `次の質問に、画面の内容を踏まえて日本語で回答してください: ${question}` },
+          ],
+        }],
+        inferenceConfig: { maxTokens: 1000 },
+      }),
+    );
+    const content = response.output?.message?.content ?? [];
+    return content
+      .filter((b): b is { text: string } => typeof (b as Record<string, unknown>).text === 'string')
+      .map((b) => b.text).join('').trim() || 'すみません、画面を分析できませんでした。';
+  } catch (err) {
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error('Vision 解析エラー (Converse API):', msg);
+    throw new VisionError(msg);
+  }
+}
+
+// Step 2: AgentCore で AI 応答生成 (テキストのみ受け取る)
+async function invokeAgent(sessionId: string, inputText: string): Promise<string> {
   const command = new InvokeAgentCommand({
     agentId: AGENT_ID,
     agentAliasId: AGENT_ALIAS_ID,
     sessionId,      // Chime MeetingId をそのまま使用 (UUID 形式)
     inputText,
     enableTrace: false,
-    // 画面共有フレームがある場合はマルチモーダル入力として渡す
-    ...(frameBase64
-      ? {
-          sessionState: {
-            files: [{
-              name: 'screen-capture.jpg',
-              source: {
-                byteContent: {
-                  data: Buffer.from(frameBase64, 'base64'),
-                  mediaType: 'image/jpeg',
-                },
-                sourceType: 'BYTE_CONTENT',
-              },
-              useCase: 'CHAT',  // 会話コンテキスト内で画像を参照
-            }],
-          },
-        }
-      : {}),
   });
 
   const response = await agentClient.send(command);
@@ -473,7 +653,8 @@ async function invokeAgent(
 **ポイント:**
 - `sessionId` は英数字・ハイフン・アンダースコアのみ、最大 100 文字。Chime MeetingId (UUID) はこの条件を満たします
 - レスポンスは `completion` という AsyncIterable — `for await` でチャンクを結合する必要があります
-- 画面共有フレームは `sessionState.files` 経由でマルチモーダル送信。Vision 対応モデルが画像を直接解析します
+- 画像解析は **Converse API** で行い、テキスト結果のみを `InvokeAgent` の `inputText` に含めます (`sessionState.files` への JPEG 添付は ValidationException になります)
+- `jp.*` クロスリージョン推論プロファイルで Converse API を使う場合、Lambda IAM ロールに `bedrock:Converse` と `bedrock:InvokeModel` の両方が必要です
 
 ### クロスリージョン推論プロファイル (jp.anthropic.claude-sonnet-4-6)
 
@@ -582,8 +763,17 @@ POST /documents
 ```typescript
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
+// タグを検証・サニタイズ (最大 10 個、各 50 文字まで)
+const rawTags = body.tags;
+const tags: string[] = Array.isArray(rawTags)
+  ? rawTags
+      .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+      .map((t) => t.trim().slice(0, 50))
+      .slice(0, 10)
+  : [];
+
 // SQS メッセージサイズ上限は 256KB — 超過時は早期エラー
-const messageBody = JSON.stringify({ content: content.trim(), source, userId });
+const messageBody = JSON.stringify({ content: content.trim(), source, userId, tags });
 if (Buffer.byteLength(messageBody, 'utf8') > 250_000) {
   return { statusCode: 413, body: JSON.stringify({
     error: 'ドキュメントが大きすぎます (上限 250KB)。分割して登録してください',
@@ -614,7 +804,7 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
 
   for (const record of event.Records) {
     try {
-      const { content, source, userId } = JSON.parse(record.body);
+      const { content, source, userId, tags = [] } = JSON.parse(record.body);
 
       // 1. チャンク分割 (スライディングウィンドウ: 500字, 50字オーバーラップ)
       const chunks = splitIntoChunks(content, 500, 50);
@@ -628,7 +818,8 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
           vectors.push({
             key: `${userId}/${crypto.randomUUID()}`,
             data: { float32: embedding },
-            metadata: { text: chunks[i + j], source, userId, chunkIndex: i + j },
+            // tags を各チャンクのメタデータに付与 — manage-documents で集約して返す
+            metadata: { text: chunks[i + j], source, userId, chunkIndex: i + j, tags },
           });
         });
       }
@@ -719,7 +910,9 @@ async function retrieveContext(queryText: string, topK = 3): Promise<string> {
 
 Bedrock AgentCore に Knowledge Base をアタッチする構成が AWS のベストプラクティスですが、本システムでは Lambda で手動 RAG を実装しています。理由は**マルチモーダル入力との共存**です。
 
-Agent に Knowledge Base と画面共有フレーム (JPEG) を同時に渡すと、Agent が「どのコンテキストを優先するか」の制御が難しくなります。Lambda で自前 Retrieve を行うことで、「画面共有があるときは RAG をスキップ」「RAG の結果を XML タグで明示的に囲む」といったプロンプトの柔軟な制御が可能になります。
+Lambda で自前 Retrieve を行うことで、RAG の結果を XML タグ (`<context>`, `<user_input>`) で明示的に構造化し、プロンプトインジェクション対策とプロンプトの柔軟な制御が可能になります。
+
+画面共有がある場合は **Vision (Converse API) と RAG を `Promise.allSettled` で並列実行**し、両コンテキストを AgentCore に渡します。Vision が失敗した場合 (`VisionError`) は RAG のみで応答を継続するグレースフォールバック設計です。
 :::
 
 ### Titan Embeddings V2 でのベクトル化
@@ -772,22 +965,28 @@ async function embedText(text: string): Promise<number[]> {
      ↓
 3. POST /ai-chat { text, sessionId, frame? }
      ↓
-4. Lambda: Titan Embeddings V2 でクエリをベクトル化
+4. Lambda: frame あり → Vision + RAG を Promise.allSettled で並列実行
+          frame なし → RAG のみ実行
+
+   [Vision パス (frame あり)]           [RAG パス (常時)]
+   Bedrock Converse API (JPEG 解析)      Titan Embeddings V2 でクエリをベクトル化
+   ↓ frameAnalysis (テキスト)            ↓
+   Vision 失敗時は VisionError → 空文字  S3 Vectors で類似チャンクを上位 3 件検索
      ↓
-5. S3 Vectors で類似チャンクを上位 3 件検索 (RAG)
+5. inputText を XML タグで組み立て (プロンプトインジェクション対策):
+   - Vision + RAG あり: [画面解析結果] + <context>RAG</context> + <user_input>発話</user_input>
+   - Vision のみ:       [画面解析結果] + <user_input>発話</user_input>
+   - RAG のみ:          <context>RAG</context> + <user_input>発話</user_input>
+   - それ以外:           <user_input>発話</user_input>
      ↓
-6. inputText を XML タグで組み立て (プロンプトインジェクション対策):
-   - 画面共有あり: 指示文 + <user_input>発話</user_input>
-   - RAG あり:     指示文 + <context>RAG結果</context> + <user_input>発話</user_input>
-   - それ以外:      <user_input>発話</user_input>
-     ↓
-7. Bedrock AgentCore InvokeAgent (sessionId で会話履歴を継続)
+6. Bedrock AgentCore InvokeAgent (sessionId で会話履歴を継続)
      ↓ (AsyncIterable でストリーミング受信)
-8. Amazon Polly Neural TTS で音声合成 (Kazuha, ja-JP, mp3)
+7. Amazon Polly Neural TTS で音声合成 (Kazuha, ja-JP, mp3)
      ↓
-9. { text, audio: Base64MP3, ragUsed } をブラウザに返却
+8. { text, audio: Base64MP3, ragUsed, visionError? } をブラウザに返却
      ↓
-10. ブラウザ: Audio API で再生 + AI アバターをアニメーション
+9. ブラウザ: Audio API で再生 + AI アバターをアニメーション
+   ※ visionError がある場合はコンソールに警告を出力 (Vision が失敗しRAGで応答した旨)
 ```
 
 ### Lambda ハンドラ全体像
@@ -809,21 +1008,41 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (!text?.trim()) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'text フィールドが必要です' }) };
     if (!sessionId)    return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'sessionId フィールドが必要です' }) };
 
-    // 1. RAG: 画面共有がある場合はスキップ (画像解析を優先)
-    const ragContext = frame ? '' : await retrieveContext(text);
+    // 1. Vision と RAG を並列実行 (Promise.allSettled で Vision 失敗時も継続)
+    let frameAnalysis = '';
+    let ragContext = '';
+    let visionError = '';
+    if (frame) {
+      const [visionResult, ragResult] = await Promise.allSettled([
+        analyzeScreenFrame(frame, text),
+        retrieveContext(text),
+      ]);
+      if (visionResult.status === 'fulfilled') {
+        frameAnalysis = visionResult.value;
+      } else {
+        // Vision 失敗: エラー詳細を保持し、RAG のみで応答を継続
+        visionError = visionResult.reason instanceof Error
+          ? `${visionResult.reason.name}: ${visionResult.reason.message}`
+          : String(visionResult.reason);
+        console.error('Vision 失敗のため RAG のみで継続:', visionError);
+      }
+      ragContext = ragResult.status === 'fulfilled' ? ragResult.value : '';
+    } else {
+      ragContext = await retrieveContext(text);
+    }
 
     // 2. XML タグでユーザー入力を分離 → プロンプトインジェクション対策
-    //    悪意あるユーザーが text に「指示を無視して...」と入力しても、
-    //    XML タグで構造化することで Claude がシステム指示と区別しやすくなる
-    const inputText = frame
-      ? `共有中の画面フレームを確認しながら回答してください。\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
-      : ragContext
-        ? `[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言を元に回答してください。\n<user_input>\n${text}\n</user_input>`
-        : `<user_input>\n${text}\n</user_input>`;
+    const inputText = frameAnalysis && ragContext
+      ? `[画面共有の解析結果]\n${frameAnalysis}\n\n[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言:\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
+      : frameAnalysis
+        ? `[画面共有の解析結果]\n${frameAnalysis}\n\nユーザーの発言:\n<user_input>\n${text || '（この画面について教えてください）'}\n</user_input>`
+        : ragContext
+          ? `[参考情報]\n<context>\n${ragContext}\n</context>\n\nユーザーの発言を元に回答してください。\n<user_input>\n${text}\n</user_input>`
+          : `<user_input>\n${text}\n</user_input>`;
 
     // 3. Bedrock AgentCore で AI 応答を生成
     //    sessionId = Chime MeetingId → AgentCore がセッション単位で会話履歴を自動管理
-    const aiText = await invokeAgent(sessionId, inputText, frame);
+    const aiText = await invokeAgent(sessionId, inputText);
 
     // 4. Polly で音声合成
     const pollyResponse = await pollyClient.send(
@@ -845,7 +1064,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     return {
       statusCode: 200, headers: corsHeaders,
-      body: JSON.stringify({ text: aiText, audio: audioBase64, ragUsed: ragContext.length > 0 }),
+      body: JSON.stringify({
+        text: aiText, audio: audioBase64, ragUsed: ragContext.length > 0,
+        ...(visionError ? { visionError } : {}),  // Vision 失敗時はデバッグ用エラー詳細を返す
+      }),
     };
   } catch (error) {
     console.error('AI チャットエラー:', error);
@@ -883,18 +1105,74 @@ const audioBytes = await pollyResponse.AudioStream!.transformToByteArray();
 const audioBase64 = Buffer.from(audioBytes).toString('base64');
 ```
 
-ブラウザ側では Base64 MP3 を Blob に変換して `Audio` API で再生します。
+ブラウザ側では `AudioContext` を使ってメモリ上で完全に MP3 を再生します (`useAIConversation.ts`)。
 
 ```typescript
+// Base64 → ArrayBuffer → AudioBufferSourceNode で再生
 const binary = atob(base64Audio);
 const bytes = new Uint8Array(binary.length);
 for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-const blob = new Blob([bytes], { type: 'audio/mp3' });
-const url = URL.createObjectURL(blob);
-const audio = new Audio(url);
-audio.play();
-audio.onended = () => URL.revokeObjectURL(url);
+const arrayBuffer = bytes.buffer.slice(0);  // slice(0) でコピー: decodeAudioData が所有権を取得するため
+
+const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+const source = ctx.createBufferSource();
+source.buffer = audioBuffer;
+source.connect(ctx.destination);
+source.start(0);
 ```
+
+:::message
+**`new Audio()` でなく `AudioContext` を使う理由**
+
+`new Audio().play()` は iOS では **ユーザージェスチャー外** で呼ぶと失敗します (`NotAllowedError`)。`AudioContext` はユーザージェスチャー (マイクボタン押下など) で一度 `resume()` を呼べば、以降はジェスチャーなしで再生できます。
+
+```typescript
+// マイクボタン等のクリック時に呼ぶ (iOS 対応のためのアンロック)
+const unlockAudio = () => {
+  if (!audioContextRef.current) {
+    const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext;
+    audioContextRef.current = new AudioCtx();
+  }
+  if (audioContextRef.current.state === 'suspended') {
+    void audioContextRef.current.resume();
+  }
+};
+```
+:::
+
+### 音声レスポンスの体感速度を改善する
+
+**問題:** ユーザーから「AI の音声レスポンスが遅い」との報告がありました。調査すると、`useAIConversation.ts` の `sendTranscript` 関数が以下の構造になっていました:
+
+```typescript
+// ❌ 問題のあるコード: 音声再生完了まで "処理中" が続く
+try {
+  const data = await fetch(...).json();
+  setMessages([...prev, { role: 'assistant', content: data.text }]);
+  if (data.audio) await playAudio(data.audio);  // ← ここまで isProcessing = true
+} catch { ... } finally {
+  setIsProcessing(false);  // ← 音声が終わるまでずっと処理中
+}
+```
+
+**原因:** `setIsProcessing(false)` が `finally` ブロックにあったため、音声の再生が完了するまで UI が "処理中" のままでした。テキスト表示は即座なのに、次のメッセージを送れない状態が続いていました。
+
+**解決策:** `setIsProcessing(false)` を `await playAudio()` の**前**に移動します:
+
+```typescript
+// ✅ 修正後: テキスト表示後すぐに処理完了扱いにする
+const data = await fetch(...).json();
+setMessages([...prev, { role: 'assistant', content: data.text }]);
+setAiText(data.text);
+
+// ← ここで処理完了: 音声再生中でも次の質問を送れる
+setIsProcessing(false);
+
+// 音声再生は await するが、isProcessing はすでに false
+if (data.audio) await playAudio(data.audio);
+```
+
+これにより、AI テキストが画面に表示された瞬間にチャット入力が有効になり、体感レスポンスが大幅に向上します。
 
 ---
 
@@ -1008,15 +1286,20 @@ if (event.httpMethod === 'GET') {
     nextToken = result.nextToken;
   } while (nextToken);
 
-  // source でグループ化してドキュメント単位に集約
+  // source でグループ化してドキュメント単位に集約 (タグはチャンク横断でユニーク集約)
   const grouped = allVectors.reduce<Record<string, DocumentGroup>>((acc, v) => {
-    const meta = v.metadata as Record<string, string>;
-    const source = meta?.source ?? '不明';
+    const meta = v.metadata as Record<string, unknown>;
+    const source = (meta?.source as string) ?? '不明';
     if (!acc[source]) {
-      acc[source] = { source, count: 0, keys: [], createdAt: meta?.createdAt };
+      acc[source] = { source, count: 0, keys: [], createdAt: meta?.createdAt as string, tags: [] };
     }
     acc[source].count++;
     acc[source].keys.push(v.key!);
+    // タグはチャンクごとに同じ値が入っているが、ユニークにマージ
+    const chunkTags = Array.isArray(meta?.tags) ? (meta.tags as string[]) : [];
+    for (const tag of chunkTags) {
+      if (!acc[source].tags.includes(tag)) acc[source].tags.push(tag);
+    }
     return acc;
   }, {});
 
@@ -1087,30 +1370,46 @@ documentsResource.addMethod('DELETE', new apigateway.LambdaIntegration(manageDoc
 
 ```typescript
 // frontend/src/components/RAGManagement.tsx (抜粋)
+interface RAGDocument {
+  source: string;
+  chunks: number;
+  createdAt: string;
+  keys: string[];
+  tags?: string[];  // ← メタデータタグ (省略可能)
+}
+
 export function RAGManagement({ getIdToken, onBack }: Props) {
-  const [documents, setDocuments] = useState<DocumentGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [documents, setDocuments] = useState<RAGDocument[]>([]);
 
-  const fetchDocuments = async () => {
-    const token = await getIdToken();
-    const res = await fetch(`${API_URL}/documents`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    setDocuments(data.documents);
-  };
+  // ... fetchDocuments / handleDelete は省略 ...
 
-  const deleteDocument = async (source: string) => {
-    const token = await getIdToken();
-    await fetch(`${API_URL}/documents`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ source }),
-    });
-    await fetchDocuments(); // 一覧を再取得
-  };
+  return (
+    <div>
+      {documents.map((doc) => (
+        <div key={doc.source}>
+          <div>{doc.source}</div>
+          <div>{doc.chunks} チャンク</div>
 
-  // 削除確認ダイアログ → deleteDocument(source) で実行
+          {/* タグバッジ: 登録時にタグを付けた場合のみ表示 */}
+          {doc.tags && doc.tags.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+              {doc.tags.map((tag) => (
+                <span key={tag} style={{
+                  fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                  background: 'rgba(102,126,234,0.15)', color: '#a78bfa',
+                  border: '1px solid rgba(102,126,234,0.3)', fontWeight: 600,
+                }}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <button onClick={() => setConfirmDelete(doc)}>削除</button>
+        </div>
+      ))}
+    </div>
+  );
 }
 ```
 
@@ -1141,6 +1440,37 @@ async function extractPdfText(file: File): Promise<string> {
   }
   return texts.join('\n');
 }
+
+// フォームの状態 (タグ入力フィールドを追加)
+const [source, setSource] = useState('');
+const [tagsInput, setTagsInput] = useState('');  // カンマ区切りのタグ入力
+const [content, setContent] = useState('');
+
+// 送信時にタグをパース
+const handleSubmit = async (e: FormEvent) => {
+  const tags = tagsInput
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+
+  await fetch(`${API_URL}/documents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      content: content.trim(),
+      source: source.trim() || '未設定',
+      ...(tags.length > 0 ? { tags } : {}),  // タグがある場合のみ送信
+    }),
+  });
+};
+
+// JSX: 出典名 → タグ → ファイル読み込み → テキストエリア の順
+<input value={source} placeholder="出典名 (例: 社内FAQ、製品仕様書)" onChange={...} />
+<input
+  value={tagsInput}
+  placeholder="タグ (カンマ区切り、例: 技術,FAQ,2024)"
+  onChange={(e) => setTagsInput(e.target.value)}
+/>
 
 // ファイル読み込みボタン: .txt .md .csv .log .pdf に対応
 <input
@@ -1626,6 +1956,31 @@ const captureFrame = useCallback((maxWidth = 1280, quality = 0.65): string | nul
 - `videoWidth === 0` チェックはストリーム開始直後に呼ばれた場合のガードです
 
 :::message alert
+**`setIsSharing(true)` のタイミング: `loadeddata` を待ってから**
+
+`getDisplayMedia` でストリームを取得しても、最初のフレームが届くまで `video.videoWidth === 0` のままです。`setIsSharing(true)` を即座に呼ぶと、次の Transcribe イベントで `captureFrame()` が null を返し、AI に画面フレームが届きません。
+
+```typescript
+// NG: ストリーム設定直後に isSharing を true にすると videoWidth === 0 で null が返る
+streamRef.current = stream;
+screenVideoRef.current.srcObject = stream;
+setIsSharing(true);  // ← ここではまだ videoWidth === 0
+
+// OK: loadeddata イベントを待ってから isSharing を true にする
+screenVideoRef.current.srcObject = stream;
+await new Promise<void>((resolve) => {
+  const video = screenVideoRef.current!;
+  if (video.videoWidth > 0) { resolve(); return; }
+  const onReady = () => { video.removeEventListener('loadeddata', onReady); resolve(); };
+  video.addEventListener('loadeddata', onReady);
+  setTimeout(resolve, 2000);  // フォールバック: 2 秒後に強制続行
+});
+screenVideoRef.current.play().catch(console.error);
+setIsSharing(true);  // ← この時点では videoWidth > 0 が保証される
+```
+:::
+
+:::message alert
 **`<video>` は常に DOM に存在させること**
 
 `startScreenShare()` が呼ばれた時点で `screenVideoRef.current` が `null` だと、ストリームを `srcObject` に接続できません。`<video>` を条件付きレンダリングで非表示/表示切り替えすると ref が null になるケースがあります。`display: none` で常に DOM に存在させておくのが安全です。
@@ -1706,6 +2061,45 @@ const frame = isSharing
 ```
 
 `captureLocalFrame()` は `useMeeting` フックが提供する関数で、カメラがオフまたはダミーカメラの場合は `null` を返します。
+
+### RAG 登録エリアの折りたたみ UI
+
+RAG 登録フォームを常時展開しているとサイドバーの縦スペースを圧迫し、チャット履歴が見切れます。`showRagUpload` state でデフォルト折りたたみにし、トグルボタンで開閉できるようにしました。
+
+```tsx
+// frontend/src/components/MeetingRoom.tsx
+const [showRagUpload, setShowRagUpload] = useState(false); // デフォルト閉じた状態
+
+// サイドバー下部
+<div style={{ borderTop: '1px solid #2a2a4a', flexShrink: 0 }}>
+  <button
+    onClick={() => setShowRagUpload((p) => !p)}
+    style={{ width: '100%', display: 'flex', justifyContent: 'space-between',
+      padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa' }}
+  >
+    <span>📄 RAG 登録</span>
+    <span>{showRagUpload ? '▲ 閉じる' : '▼ 開く'}</span>
+  </button>
+  {showRagUpload && (
+    <div style={{ padding: '0 10px 10px' }}>
+      <DocumentUpload getIdToken={auth.getIdToken} />
+    </div>
+  )}
+</div>
+```
+
+### チャットバブルの文字折り返し
+
+長い URL や英数字の連続でチャットバブルが溢れる問題は、`overflowWrap: 'anywhere'` と `maxWidth` の調整で解決します:
+
+```tsx
+// チャットバブルのスタイル
+const bubbleStyle: CSSProperties = {
+  maxWidth: '96%',           // 92% → 96% に拡大
+  overflowWrap: 'anywhere',  // 長い単語/URLを強制折り返し
+  wordBreak: 'break-word',
+};
+```
 
 ### AI アバター (AIParticipant コンポーネント)
 
@@ -2170,6 +2564,19 @@ export default tseslint.config(
 | 27 | 画面共有なしで常にカメラ映像を AI に送っていた | 旧実装は手動📸ボタン (`isCameraAI` state) で切り替えていたが、ボタンを押し忘れると毎回カメラ映像が送られ API コストが増大 | `shouldCaptureCamera(text)` でキーワード検知: カメラ関連ワード (カメラ/映像/顔/どう見え) が含まれる場合のみ `captureLocalFrame()` を呼ぶ |
 | 28 | Chime SDK が CSP でブロックされ音声送信が失敗 | `connect-src` に `wss://*.chime.aws` しか設定しておらず、HTTPS の worker JS (`https://static.sdkassets.chime.aws`) と ingest API (`https://data.svc.an1.ingest.chime.aws`) がブロックされていた。また `worker-src` 未設定で Blob URL から Web Worker を作れなかった | `connect-src` に `https://*.chime.aws` を追加、`worker-src blob:` ディレクティブを追加 |
 | 29 | `customHttp.yml` を更新しても CSP が変わらない | `enableAutoBuild: false` + zip マニュアルデプロイを使用しているため `customHttp.yml` は Amplify に読まれない | CDK の `CfnApp.customHeaders` プロパティに直接記述する。`cdk deploy` のタイミングで CloudFront に確実に反映される |
+| 30 | CDK デプロイで LogGroup `Resource already exists` | `logGroupName: '/aws/lambda/...'` を指定すると Lambda が自動作成するロググループと名前が衝突 | `LogGroup` 定義から `logGroupName` を削除。名前は CDK が自動生成する |
+| 31 | CDK デプロイで `installLatestAwsSdk` 警告 | `AwsCustomResource` のデフォルト `true` が曖昧と判断される | IAM 等の安定 API は `false`、S3Vectors 等の新 API は `true` を明示指定 |
+| 32 | `jest@29` → `glob@7`/`inflight` deprecated 警告 | jest@29 の推移的依存であり解消不可 | 警告を無視して運用。`jest@30` は CodeBuild パーサーエラーが発生するため v29 を固定 |
+| 33 | Amplify の `/aibot.mp4` が 404 でなく `/index.html` にリダイレクト | SPA リライトルールの拡張子除外リストに `mp4` が含まれていない | Amplify `customRules` の拡張子パターンに `mp4` を追加: `css\|gif\|ico\|jpg\|js\|mp4\|png\|...` |
+| 34 | 画面共有後すぐの発話で AI にフレームが届かない | `isSharing` が `true` になった時点で `video.videoWidth === 0` → `captureFrame()` が null を返す | `startScreenShare` 内で `loadeddata` イベントを待ってから `setIsSharing(true)` を呼ぶ (2 秒タイムアウト付き) |
+| 35 | 画面共有 or カメラ付き AI 送信で "AI の応答生成に失敗しました" | Lambda に `bedrock:Converse` 権限がないか、`jp.*` 推論プロファイルの Converse API が `bedrock:InvokeModel` を要求 | Lambda IAM に `bedrock:Converse` + `bedrock:InvokeModel` を付与して `cdk deploy` を再実行。ブラウザの F12 コンソールで `visionError` の内容を確認 |
+| 36 | Vision 失敗時にリクエスト全体が 500 エラー | `Promise.all` で Vision と RAG を並列実行すると Vision 失敗でリクエスト全体が reject される | `Promise.allSettled` に変更し、Vision 失敗時は RAG のみで応答を継続 (グレースフルフォールバック) |
+| 37 | 背景ぼかしの TypeScript コンパイルエラー | `BackgroundBlurVideoFrameProcessor.create()` の戻り値が `BackgroundBlurProcessor \| undefined` — `undefined` は `VideoFrameProcessor[]` に代入できない | `if (!processor) return;` の null チェックを先に入れてから `as unknown as VideoFrameProcessor` でキャスト。`blurProcessorRef` は `any` 型で宣言して複雑な型競合を回避 |
+| 38 | カメラ切り替え後にぼかしが解除される | `changeCamera()` が元の deviceId で `startVideoInput()` を呼び、transform device を上書き | `isBlurEnabledRef.current` が true のときはカメラ切り替え時に processor と transform device を再作成してから `startVideoInput()` |
+| 39 | ダミーカメラ + ぼかし ON で映像が止まる | キャンバス描画ストリームへのぼかし適用が不安定 | ダミーカメラ検出時はぼかしを強制解除。ぼかしボタン自体を `isDummyCamera` 時は非表示にする |
+| 40 | 音声レスポンスが遅く感じる | `setIsProcessing(false)` が `finally` ブロックにあり、音声再生 (`await playAudio()`) が完了するまで UI が "処理中" のまま | `setIsProcessing(false)` を `await playAudio()` の前に移動。テキスト表示後すぐに次の入力が可能になる |
+| 41 | AI メッセージが見切れて読めない | チャットバブルの `maxWidth: '92%'` が狭く、`word-break` が設定されていないため長い URL/英単語が溢れる | `maxWidth: '96%'` に拡大 + `overflowWrap: 'anywhere'` を追加。RAG 登録エリアを折りたたみ式にして縦スペースを確保 |
+| 42 | RAG 登録エリアが常時表示で縦幅を圧迫 | サイドバーに DocumentUpload がデフォルト展開されており、チャット履歴が狭くなる | `showRagUpload` state (デフォルト `false`) + 「▼ 開く / ▲ 閉じる」トグルボタンで折りたたみ式に変更 |
 
 ---
 
@@ -2314,10 +2721,14 @@ Amazon Chime SDK・Bedrock AgentCore・S3 Vectors という 2025 年時点で最
 | **インフラ (IaC)** | AWS CDK (TypeScript)、CodeCommit + CodePipeline |
 | **バックエンド** | Lambda、Bedrock AgentCore、S3 Vectors + SQS、Cognito (Admin API) |
 | **フロントエンド** | React 19 + Vite 7、Chime SDK JS、画面共有 Canvas キャプチャ、Amplify Hosting |
+| **映像処理** | BackgroundBlurVideoFrameProcessor (背景ぼかし)、ネットワーク品質モニタリング |
+| **RAG 拡張** | メタデータタグ (SQS → S3 Vectors → 管理 UI)、折りたたみ式登録 UI |
 | **セキュリティ** | Cognito JWT 認証、CSP / HSTS、Amplify WAF 統合 |
 | **CI/CD & 品質保証** | Vitest、Playwright、ESLint (`exhaustive-deps: error`)、Prettier |
 
 特に Bedrock AgentCore は、従来の Converse API + DynamoDB による自前セッション管理と比べて Lambda の実装がシンプルになります。S3 Vectors も、ベクトル DB のインフラ管理が不要になる点で開発体験の改善に寄与します。SQS による非同期 RAG 登録は API Gateway の 29 秒タイムアウト制約を根本解決しています。
+
+追加機能として `BackgroundBlurVideoFrameProcessor` による **背景ぼかし**と、`AudioVideoObserver` コールバックによる **ネットワーク品質モニタリング** も実装しました。これらは Chime SDK JS が提供する高水準 API を活用しており、追加インフラなしで実現できます。RAG ドキュメントへの **メタデータタグ付与** はベクトル登録→ワーカー→管理 UI の全パイプラインを通じて一貫して扱われ、ドキュメントの整理・検索性を向上させます。また、AI テキスト表示後すぐに処理完了とする `setIsProcessing` の配置変更で音声レスポンスの体感速度も改善しています。
 
 インフラ面では **CodeCommit + CodePipeline + Amplify によるモノレポ CI/CD** を整備し、`git push` 一発でフロントエンドとインフラが同時に自動デプロイされる体制を実現しています。セキュリティ面でも `customHttp.yml` による HTTP セキュリティヘッダーと Amplify ネイティブの WAF 統合により、PoC 品質からエンタープライズ本番品質へのギャップを埋めています。
 

@@ -23,7 +23,7 @@ const s: Record<string, CSSProperties> = {
   frameIndicator: { position: 'absolute', top: 8, right: 10, fontSize: 10, background: 'rgba(16,185,129,0.8)', padding: '2px 8px', borderRadius: 6, color: '#fff', fontWeight: 600 },
   chatArea: { flex: 1, overflowY: 'auto' as CSSProperties['overflowY'], padding: 10, display: 'flex', flexDirection: 'column', gap: 6 },
   chatEmpty: { color: '#4a4a7a', fontSize: 11, textAlign: 'center', marginTop: 16, lineHeight: 1.8 },
-  bubble: { padding: '7px 10px', borderRadius: 8, fontSize: 12, lineHeight: 1.5, maxWidth: '92%', wordBreak: 'break-word' as CSSProperties['wordBreak'] },
+  bubble: { padding: '7px 10px', borderRadius: 8, fontSize: 12, lineHeight: 1.5, maxWidth: '96%', wordBreak: 'break-word' as CSSProperties['wordBreak'], overflowWrap: 'anywhere' as CSSProperties['overflowWrap'] },
   sidebarSection: { padding: '8px 10px', borderTop: '1px solid #2a2a4a', flexShrink: 0 },
   controls: { display: 'flex', justifyContent: 'center', gap: 10, padding: '10px 16px', background: '#16162a', borderTop: '1px solid #2a2a4a', flexShrink: 0 },
   btn: { border: 'none', borderRadius: 50, width: 44, height: 44, fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -104,6 +104,8 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
 
   // カメラ設定パネル表示
   const [showCameraSettings, setShowCameraSettings] = useState(false);
+  // RAG 登録パネル展開
+  const [showRagUpload, setShowRagUpload] = useState(false);
   // 無音確認ダイアログ内の編集テキスト
   const [editedText, setEditedText] = useState('');
 
@@ -115,10 +117,11 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
   // onTranscript は ref 経由で参照するため呼び出し時に最新のものが使われる
   const {
     status, meetingId, isMuted, isVideoOn, isDummyCamera,
+    isBlurEnabled, isBlurSupported, networkQuality,
     videoDevices, selectedDeviceId, resolution,
     localVideoRef, audioRef, errorMessage,
     pendingText, showSilenceConfirm,
-    startMeeting, endMeeting, toggleMute, toggleVideo,
+    startMeeting, endMeeting, toggleMute, toggleVideo, toggleBackgroundBlur,
     changeCamera, changeResolution,
     startContentShare, stopContentShare,
     confirmSend, cancelSend, confirmContinue,
@@ -323,11 +326,29 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
               🖥️ 画面共有中
             </div>
           )}
+          {isBlurEnabled && (
+            <div className="hide-tablet" style={{ ...s.statusPill, color: '#a78bfa', background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)', fontSize: 11, padding: '3px 10px' }}>
+              🌫️ 背景ぼかし中
+            </div>
+          )}
+          {networkQuality === 'poor' && (
+            <div style={{ ...s.statusPill, color: '#fbbf24', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 11, padding: '3px 10px' }}>
+              ⚠️ 通信不安定
+            </div>
+          )}
           <button style={s.logoutBtn} onClick={onOpenProfile}>設定</button>
           <button style={s.logoutBtn} onClick={onOpenRagManagement}>RAG管理</button>
           <button style={s.logoutBtn} onClick={auth.logout}>ログアウト</button>
         </div>
       </div>
+
+      {/* ネットワーク品質警告バナー */}
+      {networkQuality === 'poor' && (
+        <div style={{ background: 'rgba(245,158,11,0.15)', borderBottom: '1px solid rgba(245,158,11,0.4)', padding: '6px 16px', fontSize: 12, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span>⚠️</span>
+          <span>ネットワーク接続が不安定です。通信状況が改善されるまでしばらくお待ちください。</span>
+        </div>
+      )}
 
       {/* メインコンテンツ */}
       <div className="meeting-body">
@@ -479,9 +500,20 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
             </form>
           </div>
 
-          {/* RAG ドキュメント登録 */}
-          <div style={s.sidebarSection}>
-            <DocumentUpload getIdToken={auth.getIdToken} />
+          {/* RAG ドキュメント登録 (折りたたみ可能) */}
+          <div style={{ borderTop: '1px solid #2a2a4a', flexShrink: 0 }}>
+            <button
+              onClick={() => setShowRagUpload((p) => !p)}
+              style={{ width: '100%', padding: '7px 10px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#a0a0c0', fontSize: 11, fontWeight: 600 }}
+            >
+              <span>📄 RAG 登録</span>
+              <span style={{ fontSize: 10, color: '#4a4a7a' }}>{showRagUpload ? '▲ 閉じる' : '▼ 開く'}</span>
+            </button>
+            {showRagUpload && (
+              <div style={{ padding: '0 10px 10px' }}>
+                <DocumentUpload getIdToken={auth.getIdToken} />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -549,6 +581,15 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
         >
           🖥️
         </button>
+        {isBlurSupported && !isDummyCamera && (
+          <button
+            style={{ ...s.btn, background: isBlurEnabled ? '#7c3aed' : '#2a2a4a', color: '#fff', opacity: isDummyCamera ? 0.4 : 1 }}
+            onClick={() => void toggleBackgroundBlur()}
+            title={isBlurEnabled ? '背景ぼかし OFF' : '背景ぼかし ON'}
+          >
+            🌫️
+          </button>
+        )}
         <button
           style={{ ...s.btn, background: showCameraSettings ? '#a78bfa' : '#2a2a4a', color: '#fff' }}
           onClick={() => setShowCameraSettings((p) => !p)}
