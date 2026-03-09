@@ -61,6 +61,12 @@ export function useAIConversation({ sessionId, getIdToken }: UseAIConversationOp
           return;
         }
 
+        // Chrome はアイドル時に AudioContext を自動 suspend する。
+        // 再生前に必ず resume して suspended 状態による無音を防ぐ。
+        if (ctx.state === 'suspended') {
+          void ctx.resume();
+        }
+
         setIsSpeaking(true);
 
         // Base64 → Uint8Array → ArrayBuffer
