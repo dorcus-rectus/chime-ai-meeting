@@ -692,6 +692,49 @@ foundationModel: 'jp.anthropic.claude-sonnet-4-6',
 - `Claude Sonnet 4.6` (cross-region inference 用)
 - `Amazon Titan Embeddings V2` (RAG 用)
 
+### ⚠️ AgentCore のレスポンス遅延と本番運用での代替手段
+
+AgentCore (`InvokeAgent`) はエージェントオーケストレーション層を経由するため、**Converse API の直接呼び出しと比較して 2〜4 秒程度の追加レイテンシが発生**します。本システムでは Vision (Converse API, ~1〜3s) + RAG (~0.3s) + AgentCore (~3〜5s) + Polly (~0.5s) が直列に並ぶため、エンドツーエンドで **5〜10 秒** 程度になるのが現実です。
+
+会議 AI のような「即レスが期待されるリアルタイム UX」では、この遅延がユーザー体験の障壁になる場合があります。
+
+#### 本番運用での代替アーキテクチャ比較
+
+| アーキテクチャ | E2E レイテンシ目安 | 会話履歴管理 | 主なトレードオフ |
+|-------------|----------------|------------|--------------|
+| **AgentCore (現構成)** | 5〜10 s | ✅ 自動 (sessionId) | セットアップが容易・遅い |
+| **Bedrock Converse API + DynamoDB** | 2〜4 s | 手動 (DynamoDB) | 高速・Lambda で履歴管理が必要 |
+| **Bedrock Inline Agents** | 3〜6 s | ✅ 自動 | エージェント機能+比較的新しい API |
+| **Dify (セルフホスト)** | 2〜5 s | ✅ ビルトイン | 高速・別サービス運用が必要 |
+| **LangChain/LangGraph on Lambda** | 2〜4 s | 実装次第 | 柔軟・コード量が増える |
+
+#### Dify は代替手段になるか？
+
+[Dify](https://dify.ai/) は OSS の LLM アプリケーションプラットフォームで、AgentCore + 手動 RAG を**丸ごと置き換えられる有力な選択肢**です。
+
+**メリット:**
+- ビジュアルワークフローエディタで LLM フロー・RAG・ツール連携を設定できる
+- Claude を含む複数 LLM に対応し、Bedrock 経由でも呼び出し可能
+- REST API が提供されるため、Lambda の `invokeAgent()` を `fetch('https://dify-host/v1/chat-messages')` に差し替えるだけで統合できる
+- 組み込み RAG で Weaviate・Qdrant・pgvector・OpenSearch・Pinecone を選択可能
+- ストリーミングレスポンスに対応しており、AgentCore と同様に `for await` で受け取れる
+- 会話履歴・セッション管理をビルトインで持つ
+
+**デメリット・注意点:**
+- ECS/Fargate や EC2 でのセルフホストが必要（フルサーバーレスではなくなる）
+- Cognito JWT による認証はカスタム実装が必要
+- AWS WAF・VPC・IAM などの AWS ネイティブセキュリティとの統合に追加工数がかかる
+- Dify Cloud (SaaS 版) を使えばホスト不要だが、社内データを外部 SaaS に送ることになる
+
+**判断基準:**
+- 会話フローの複雑さが増す・LLM を頻繁に切り替える → **Dify が優位**
+- AWS 内で完結させたい・サーバーレスを維持したい → **Converse API + DynamoDB が現実的**
+- レイテンシより機能・保守性を優先 → **AgentCore 継続も十分**
+
+:::message
+**最速構成**: Bedrock Converse API + DynamoDB (fulfillment history) + Streaming レスポンス。AgentCore の 2〜4 秒オーバーヘッドがなくなり、体感速度が大きく改善します。ただし「直前 N ターン分の履歴を毎回 API に送る」実装が必要で、Lambda のコード量は増えます。
+:::
+
 ---
 
 ## 3. Amazon S3 Vectors
@@ -972,6 +1015,58 @@ async function embedText(text: string): Promise<number[]> {
 | 256 | 約 97% | 1/4 |
 
 `dimensions: 256` に設定する場合は S3 Vectors インデックスの `dimension` 値も合わせて変更してください。コンテンツの量が増えてくる本番環境では 256 次元を検討する価値があります。
+:::
+
+### ⚠️ S3 Vectors のコスト優位性と本番 RAG 性能の限界
+
+本システムが S3 Vectors を採用した理由は**コストと AWS ネイティブ統合**です。しかし本番環境でドキュメント数やクエリ数が増えると、S3 Vectors の制約が顕在化します。
+
+#### S3 Vectors の現時点での制約
+
+- **サーバーサイドフィルタリングがない**: `userId` によるユーザー分離は `topK * 5` を取得してクライアント側でフィルタする方式（本実装）。ドキュメント数が増えると無駄なデータ転送・計算が増える
+- **ページネーション必須**: `ListVectors` は全件スキャンのため、一覧取得は件数に比例して遅くなる
+- **ANN 精度の透明性**: S3 Vectors の近似最近傍探索のアルゴリズム詳細は非公開。チューニング余地が限られる
+- **サービス成熟度**: 2025 年 12 月 GA のため、エコシステム・SDK・コミュニティ事例がまだ少ない
+
+#### ベクトル DB の本番性能比較
+
+| サービス | クエリ遅延 | メタデータフィルタ | スケール | コスト感 | 推奨シナリオ |
+|---------|----------|-----------------|--------|---------|-----------|
+| **S3 Vectors** | ~100 ms | クライアント側のみ | 2B vec/index | 非常に安い | PoC・小〜中規模・コスト最優先 |
+| **Bedrock Knowledge Bases** | ~50〜100 ms | ✅ 豊富 | 大規模対応 | 中 | AWS マネージド RAG・AgentCore との統合 |
+| **OpenSearch Serverless (k-NN)** | ~20〜50 ms | ✅ 豊富 | 大規模対応 | 中〜高 | AWS 内完結・高スループット |
+| **Aurora PostgreSQL + pgvector** | ~10〜50 ms | ✅ SQL で柔軟 | 中規模 | 中 | 既存 RDB との共存・複合クエリ |
+| **Pinecone** | ~5〜20 ms | ✅ 豊富 | 数十億 vec | 従量課金 | 検索精度・速度最優先 |
+| **Qdrant** | ~5〜10 ms | ✅ 豊富 | 数十億 vec | セルフホスト or クラウド | 高性能 OSS・Dify との相性◎ |
+| **Weaviate** | ~10〜30 ms | ✅ 豊富 | 大規模対応 | セルフホスト or クラウド | OSS・マルチモーダル対応 |
+
+#### 本番移行時の推奨構成
+
+**AWS 内で完結させたい場合 → Bedrock Knowledge Bases が最有力**
+
+```
+S3 (PDF/テキスト保存)
+  ↓ 自動同期
+Bedrock Knowledge Bases
+  └─ OpenSearch Serverless (managed)
+       ↓ Retrieve API
+Bedrock AgentCore (Knowledge Base をアタッチ)
+```
+
+AgentCore に Knowledge Base を直接アタッチする公式構成を取ることで、手動 RAG (`retrieveContext()`) と S3 Vectors が不要になります。ただし Vision (Converse API) との組み合わせには引き続き自前実装が必要です。
+
+**コストと性能のバランスを取るなら → Aurora pgvector**
+
+既に Aurora を使っているシステムであれば `pgvector` 拡張を有効化するだけでベクトル検索が追加でき、SQL の `WHERE user_id = $1` でサーバーサイドフィルタリングが実現します。S3 Vectors のクライアントフィルタ問題を根本解決できます。
+
+**Dify と組み合わせるなら → Qdrant または Weaviate**
+
+Dify はこれらのベクトル DB とネイティブ統合しており、管理 UI 上でドキュメントのアップロード・チャンク設定・RAG クエリのデバッグができます。
+
+:::message
+**移行戦略のポイント**
+
+S3 Vectors → 別ベクトル DB への移行は、`ingest-document-worker/index.ts` と `ai-chat/index.ts` の `PutVectorsCommand` / `QueryVectorsCommand` 呼び出しを新しい SDK に差し替えるだけです。フロントエンドと他の Lambda は変更不要です。本番スケールに達した時点で移行を検討してください。
 :::
 
 ---
