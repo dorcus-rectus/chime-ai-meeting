@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
+import { BackgroundBlurVideoFrameProcessor } from 'amazon-chime-sdk-js';
 import type { UseAuthReturn } from '../hooks/useAuth';
 import { API_URL } from '../config';
 
@@ -145,6 +146,24 @@ export function UserProfile({ auth, onBack }: Props) {
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [localError, setLocalError] = useState('');
+
+  // ─── 背景ぼかし preference ─────────────────────────────────────
+  const [blurPreference, setBlurPreference] = useState<boolean>(() => {
+    return localStorage.getItem('blurPreference') === 'on';
+  });
+  const [blurSupported, setBlurSupported] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    BackgroundBlurVideoFrameProcessor.isSupported()
+      .then((supported) => setBlurSupported(supported))
+      .catch(() => setBlurSupported(false));
+  }, []);
+
+  const handleBlurToggle = () => {
+    const next = !blurPreference;
+    setBlurPreference(next);
+    localStorage.setItem('blurPreference', next ? 'on' : 'off');
+  };
 
   // ─── デバイステスト ─────────────────────────────────────────────
   const [testActive, setTestActive] = useState(false);
@@ -343,6 +362,40 @@ export function UserProfile({ auth, onBack }: Props) {
             <button style={s.testBtn} onClick={() => void startTest()}>
               テスト開始 (カメラ・マイクを確認)
             </button>
+          )}
+        </div>
+
+        {/* 背景ぼかし設定 */}
+        <div style={s.section}>
+          <div style={s.sectionTitle}>映像設定</div>
+          <div style={s.infoRow}>
+            <span style={s.infoLabel}>背景ぼかし</span>
+            {blurSupported === null ? (
+              <span style={{ fontSize: 12, color: '#6b7280' }}>確認中...</span>
+            ) : blurSupported ? (
+              <button
+                onClick={handleBlurToggle}
+                style={{
+                  background: blurPreference ? 'rgba(124,58,237,0.2)' : '#1a1a2e',
+                  border: `1px solid ${blurPreference ? '#7c3aed' : '#2a2a4a'}`,
+                  borderRadius: 20,
+                  color: blurPreference ? '#a78bfa' : '#6b7280',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '4px 14px',
+                  cursor: 'pointer',
+                }}
+              >
+                {blurPreference ? '🌫️ ON' : 'OFF'}
+              </button>
+            ) : (
+              <span style={{ fontSize: 12, color: '#6b7280' }}>非対応ブラウザ</span>
+            )}
+          </div>
+          {blurSupported && (
+            <div style={{ fontSize: 11, color: '#4a4a7a' }}>
+              ※ 次の会議から有効になります
+            </div>
           )}
         </div>
 

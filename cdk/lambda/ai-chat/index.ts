@@ -71,8 +71,9 @@ async function embedText(text: string): Promise<number[]> {
 
 // -------------------------------------------------------
 // S3 Vectors から関連ドキュメントチャンクを検索 (RAG)
+// userId でフィルタしてユーザー間のドキュメント分離を保証する
 // -------------------------------------------------------
-async function retrieveContext(queryText: string, topK = 3): Promise<string> {
+async function retrieveContext(queryText: string, userId: string, topK = 3): Promise<string> {
   try {
     const queryVector = await embedText(queryText);
     const result = await s3VectorsClient.send(
@@ -80,15 +81,18 @@ async function retrieveContext(queryText: string, topK = 3): Promise<string> {
         vectorBucketName: VECTOR_BUCKET_NAME,
         indexName: VECTOR_INDEX_NAME,
         queryVector: { float32: queryVector },
-        topK: topK,
+        topK: topK * 5, // フィルタ後に topK 件確保するため多めに取得
         returnMetadata: true,
       }),
     );
     if (!result.vectors || result.vectors.length === 0) return '';
-    return result.vectors.map((v, i) => {
-      const meta = v.metadata as { text?: string; source?: string } | undefined;
-      return `[${i + 1}] (出典: ${meta?.source ?? '不明'})\n${meta?.text ?? ''}`;
-    }).join('\n\n');
+    return result.vectors
+      .filter((v) => (v.metadata as Record<string, unknown>)?.userId === userId)
+      .slice(0, topK)
+      .map((v, i) => {
+        const meta = v.metadata as { text?: string; source?: string } | undefined;
+        return `[${i + 1}] (出典: ${meta?.source ?? '不明'})\n${meta?.text ?? ''}`;
+      }).join('\n\n');
   } catch (err) {
     console.warn('RAG 検索失敗 (フォールバック):', err);
     return '';
@@ -259,7 +263,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (frame) {
       const [visionResult, ragResult] = await Promise.allSettled([
         analyzeScreenFrame(frame, text),
-        retrieveContext(text),
+        retrieveContext(text, userId),
       ]);
       if (visionResult.status === 'fulfilled') {
         frameAnalysis = visionResult.value;
@@ -272,7 +276,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }
       ragContext = ragResult.status === 'fulfilled' ? ragResult.value : '';
     } else {
-      ragContext = await retrieveContext(text);
+      ragContext = await retrieveContext(text, userId);
     }
 
     // inputText の組み立て (XML タグでユーザー入力を分離 → プロンプトインジェクション対策):

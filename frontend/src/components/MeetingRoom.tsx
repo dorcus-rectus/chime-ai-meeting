@@ -112,6 +112,10 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
   // 画面共有フック
   const { isSharing, error: screenShareError, screenVideoRef, startScreenShare, stopScreenShare, captureFrame } = useScreenShare();
 
+  // isProcessing を useMeeting に渡すための state ブリッジ
+  // (useMeeting → meetingId → useAIConversation → isProcessing の順に依存するため)
+  const [isProcessingBridge, setIsProcessingBridge] = useState(false);
+
   // 会議フック (meetingId を先に取得するため先に呼ぶ)
   // sendTranscript は後続の useAIConversation で定義されるが、
   // onTranscript は ref 経由で参照するため呼び出し時に最新のものが使われる
@@ -137,7 +141,7 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
     // sendTranscript は下で定義されるが、この callback は呼ばれる時点では定義済み
     sendTranscript(transcript, frame ?? undefined);
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-  });
+  }, isProcessingBridge);
 
   // AI 会話フック
   const {
@@ -147,6 +151,12 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
     sessionId: meetingId,
     getIdToken: auth.getIdToken,
   });
+
+  // isProcessing → ブリッジ state に同期 (useMeeting に渡すため)
+  useEffect(() => {
+    setIsProcessingBridge(isProcessing);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProcessing]);
 
   // AI 発話中は音声認識を停止し、終了後に再開
   useEffect(() => {
@@ -559,13 +569,26 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
       )}
 
       {/* コントロールバー */}
-      <div style={s.controls}>
+      <div style={{ ...s.controls, flexDirection: 'column', gap: 6 }}>
+        {/* 音声認識ステータスラベル */}
+        {!isMuted && (
+          <div style={{ fontSize: 11, color: isProcessing ? '#f59e0b' : isSpeaking ? '#10b981' : '#06b6d4', fontWeight: 600, textAlign: 'center' }}>
+            {isProcessing ? '⏳ AI処理中...' : isSpeaking ? '🔊 AI発話中' : '🎤 認識中'}
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
         <button
-          style={{ ...s.btn, background: isMuted ? '#ef4444' : '#2a2a4a', color: '#fff' }}
+          style={{
+            ...s.btn,
+            background: isMuted ? '#ef4444' : isProcessing ? '#f59e0b' : isSpeaking ? '#2a2a4a' : '#06b6d4',
+            color: '#fff',
+            opacity: (isProcessing || isSpeaking) ? 0.6 : 1,
+            cursor: (isProcessing || isSpeaking) ? 'not-allowed' : 'pointer',
+          }}
           onClick={handleToggleMute}
-          title={isMuted ? 'ミュート解除' : 'ミュート'}
+          title={isMuted ? 'ミュート解除' : isSpeaking ? 'AI発話中' : isProcessing ? 'AI処理中' : 'ミュート'}
         >
-          {isMuted ? '🔇' : '🎤'}
+          {isMuted ? '🔇' : isProcessing ? '⏳' : isSpeaking ? '🔊' : '🎤'}
         </button>
         <button
           style={{ ...s.btn, background: isVideoOn ? '#2a2a4a' : '#ef4444', color: '#fff' }}
@@ -603,6 +626,7 @@ export function MeetingRoom({ auth, onOpenProfile, onOpenRagManagement }: Props)
         >
           📵 退出
         </button>
+        </div>
       </div>
 
       <audio ref={audioRef as RefObject<HTMLAudioElement>} style={{ display: 'none' }} />

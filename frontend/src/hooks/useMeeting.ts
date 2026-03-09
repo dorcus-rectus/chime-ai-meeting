@@ -94,7 +94,7 @@ function createDummyStream(width: number, height: number): MediaStream {
   return canvas.captureStream(1);
 }
 
-export function useMeeting(onTranscript: (text: string) => void): UseMeetingReturn {
+export function useMeeting(onTranscript: (text: string) => void, isProcessing = false): UseMeetingReturn {
   const [status, setStatus] = useState<MeetingStatus>('idle');
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
@@ -144,6 +144,13 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   const transcriptionPausedRef = useRef(false);
   // 重複防止: 最後にaccumulateしたテキストとタイムスタンプ
   const lastAccumulatedRef = useRef<{ text: string; ts: number } | null>(null);
+  // AI 処理中にダイアログ表示が抑制されたことを記録
+  const pendingShowDialogRef = useRef(false);
+  // isProcessing の同期参照 (debounce タイマーコールバック内で参照)
+  const isProcessingRef = useRef(isProcessing);
+  isProcessingRef.current = isProcessing;
+  // selectedDeviceId の同期参照 (非同期コールバック内での参照用)
+  const selectedDeviceIdRef = useRef('');
 
   // -------------------------------------------------------
   // テキスト蓄積: 発話の確定結果を受け取り、3秒無音でダイアログ表示
@@ -179,6 +186,11 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       if (!pendingTextRef.current.trim()) return;
+      // AI 処理中はダイアログ表示を抑制 (処理完了後に自動表示する)
+      if (isProcessingRef.current) {
+        pendingShowDialogRef.current = true;
+        return;
+      }
       // 3秒無音 → 確認ダイアログを表示し、音声認識を一時停止
       showSilenceConfirmRef.current = true;
       setShowSilenceConfirm(true);
@@ -282,6 +294,20 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
   }, []);
 
   // -------------------------------------------------------
+  // isProcessing が false になったときに抑制済みダイアログを表示
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (!isProcessing && pendingShowDialogRef.current && pendingTextRef.current.trim() && !showSilenceConfirmRef.current) {
+      pendingShowDialogRef.current = false;
+      showSilenceConfirmRef.current = true;
+      setShowSilenceConfirm(true);
+      if (speechRecognitionRef.current) {
+        try { speechRecognitionRef.current.stop(); } catch { /* 既に停止中 */ }
+      }
+    }
+  }, [isProcessing]);
+
+  // -------------------------------------------------------
   // 会議開始
   // -------------------------------------------------------
   const startMeeting = useCallback(
@@ -339,11 +365,13 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
           if (videoInputDevices.length > 0) {
             const firstId = videoInputDevices[0].deviceId;
             await session.audioVideo.startVideoInput(firstId);
+            selectedDeviceIdRef.current = firstId;
             setSelectedDeviceId(firstId);
           } else {
             const stream = createDummyStream(resolution.width, resolution.height);
             dummyStreamRef.current = stream;
             await session.audioVideo.startVideoInput(stream as unknown as string);
+            selectedDeviceIdRef.current = DUMMY_DEVICE_ID;
             setSelectedDeviceId(DUMMY_DEVICE_ID);
             setIsDummyCamera(true);
           }
@@ -353,6 +381,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
             const stream = createDummyStream(resolution.width, resolution.height);
             dummyStreamRef.current = stream;
             await session.audioVideo.startVideoInput(stream as unknown as string);
+            selectedDeviceIdRef.current = DUMMY_DEVICE_ID;
             setSelectedDeviceId(DUMMY_DEVICE_ID);
             setIsDummyCamera(true);
           } catch (dummyErr) {
@@ -385,9 +414,28 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
           connectionDidSuggestStopVideo: () => setNetworkQuality('poor'),
         });
 
-        // 背景ぼかし対応状況を非同期で確認
-        BackgroundBlurVideoFrameProcessor.isSupported().then((supported) => {
+        // 背景ぼかし対応状況を非同期で確認 + localStorage preference の自動適用
+        BackgroundBlurVideoFrameProcessor.isSupported().then(async (supported) => {
           setIsBlurSupported(supported);
+          if (supported && localStorage.getItem('blurPreference') === 'on' && !dummyStreamRef.current) {
+            try {
+              const processor = await BackgroundBlurVideoFrameProcessor.create();
+              if (processor && loggerRef.current && selectedDeviceIdRef.current && selectedDeviceIdRef.current !== DUMMY_DEVICE_ID) {
+                blurProcessorRef.current = processor;
+                const transformDevice = new DefaultVideoTransformDevice(
+                  loggerRef.current,
+                  selectedDeviceIdRef.current,
+                  [processor],
+                );
+                blurTransformDeviceRef.current = transformDevice;
+                await session.audioVideo.startVideoInput(transformDevice);
+                isBlurEnabledRef.current = true;
+                setIsBlurEnabled(true);
+              }
+            } catch (e) {
+              console.warn('ぼかし自動適用に失敗:', e);
+            }
+          }
         }).catch(() => {
           setIsBlurSupported(false);
         });
@@ -495,6 +543,7 @@ export function useMeeting(onTranscript: (text: string) => void): UseMeetingRetu
           setIsVideoOn(true);
         }
       }
+      selectedDeviceIdRef.current = deviceId;
       setSelectedDeviceId(deviceId);
     },
     [resolution, isVideoOn],
