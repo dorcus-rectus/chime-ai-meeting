@@ -9,6 +9,7 @@ import * as cr from 'aws-cdk-lib/custom-resources';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 import { aws_bedrock as bedrock } from 'aws-cdk-lib';
 import { aws_amplify as amplify } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
@@ -126,6 +127,42 @@ export class ChimeAiMeetingStack extends cdk.Stack {
         queue: ingestDlq,
         maxReceiveCount: 3, // 3 回失敗後 DLQ へ
       },
+    });
+
+    // -------------------------------------------------------
+    // S3 — RAG 一時アップロードバケット
+    //
+    // フロントエンドが署名付き PUT URL でテキストを直接アップロードする。
+    // SQS の 256KB 制限を回避し、数 MB 以上のドキュメントを取り込み可能にする。
+    // Worker Lambda が処理完了後にオブジェクトを削除する。
+    // ライフサイクルルールで Worker 障害時のオブジェクト残留を 1 日で自動削除する。
+    // -------------------------------------------------------
+    const rawUploadBucketName = `chime-ai-raw-uploads-${this.account}`;
+    const rawUploadBucket = new s3.Bucket(this, 'RawUploadBucket', {
+      bucketName: rawUploadBucketName,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true, // cdk-nag AwsSolutions-S10: HTTPS 通信のみ許可
+      versioned: false,
+      // Worker が処理失敗・停止した場合でも 1 日後に自動削除してコストを抑える
+      lifecycleRules: [
+        {
+          id: 'expire-raw-uploads',
+          enabled: true,
+          expiration: cdk.Duration.days(1),
+        },
+      ],
+      // ブラウザから直接 PUT するために CORS を許可
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT],
+          allowedOrigins: ['*'],
+          allowedHeaders: ['Content-Type'],
+          maxAge: 3000,
+        },
+      ],
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
     });
 
     // -------------------------------------------------------
@@ -393,6 +430,17 @@ export class ChimeAiMeetingStack extends cdk.Stack {
             }),
           ],
         }),
+        // RAG 一時アップロード S3 バケット操作権限
+        // - get-upload-url Lambda: s3:PutObject (署名付き URL の発行に必要)
+        // - ingest-document-worker Lambda: s3:GetObject (コンテンツ読み取り) + s3:DeleteObject (処理後削除)
+        RawUploadS3Policy: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              actions: ['s3:PutObject', 's3:GetObject', 's3:DeleteObject'],
+              resources: [`${rawUploadBucket.bucketArn}/*`],
+            }),
+          ],
+        }),
       },
     });
 
@@ -410,6 +458,7 @@ export class ChimeAiMeetingStack extends cdk.Stack {
       VECTOR_INDEX_NAME: vectorIndexName,
       USER_POOL_ID: userPool.userPoolId,
       INGEST_QUEUE_URL: ingestQueue.queueUrl,
+      RAW_UPLOAD_BUCKET: rawUploadBucketName,
     };
 
     const bundlingOptions: lambdaNodejs.BundlingOptions = {
@@ -557,6 +606,29 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------
+    // Lambda: 署名付き URL 発行 (GET /documents/upload-url)
+    //
+    // フロントエンドがドキュメントを S3 に直接アップロードするための
+    // 署名付き PUT URL を発行する。有効期限は 5 分。
+    // -------------------------------------------------------
+    const getUploadUrlLogGroup = new logs.LogGroup(this, 'GetUploadUrlLogGroup', {
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+    const getUploadUrlFn = new lambdaNodejs.NodejsFunction(this, 'GetUploadUrlFunction', {
+      functionName: 'chime-ai-get-upload-url',
+      runtime: lambda.Runtime.NODEJS_24_X,
+      entry: path.join(__dirname, '../lambda/get-upload-url/index.ts'),
+      handler: 'handler',
+      role: lambdaRole,
+      environment: commonEnv,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      logGroup: getUploadUrlLogGroup,
+      bundling: bundlingOptions,
+    });
+
+    // -------------------------------------------------------
     // API Gateway — Cognito Authorizer
     // -------------------------------------------------------
     // API Gateway アクセスログ用 CloudWatch LogGroup
@@ -677,6 +749,14 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     documentsResource.addMethod(
       'DELETE',
       new apigateway.LambdaIntegration(manageDocumentsFn, { proxy: true }),
+      authMethodOptions,
+    );
+
+    // GET /documents/upload-url — S3 署名付き PUT URL 発行
+    const uploadUrlResource = documentsResource.addResource('upload-url');
+    uploadUrlResource.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(getUploadUrlFn, { proxy: true }),
       authMethodOptions,
     );
 
@@ -824,6 +904,10 @@ export class ChimeAiMeetingStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'VectorBucketName', {
       value: vectorBucketName,
       description: 'S3 Vectors バケット名',
+    });
+    new cdk.CfnOutput(this, 'RawUploadBucketName', {
+      value: rawUploadBucketName,
+      description: 'RAG 一時アップロード S3 バケット名',
     });
     new cdk.CfnOutput(this, 'IngestQueueUrl', {
       value: ingestQueue.queueUrl,

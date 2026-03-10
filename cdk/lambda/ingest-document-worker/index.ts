@@ -1,14 +1,17 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { S3VectorsClient, PutVectorsCommand } from '@aws-sdk/client-s3vectors';
+import { S3Client, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import type { SQSEvent, SQSBatchResponse, SQSBatchItemFailure } from 'aws-lambda';
 
 const REGION = process.env.REGION ?? 'ap-northeast-1';
 const EMBEDDING_MODEL_ID = process.env.EMBEDDING_MODEL_ID ?? 'amazon.titan-embed-text-v2:0';
 const VECTOR_BUCKET_NAME = process.env.VECTOR_BUCKET_NAME!;
 const VECTOR_INDEX_NAME = process.env.VECTOR_INDEX_NAME ?? 'documents';
+const RAW_UPLOAD_BUCKET = process.env.RAW_UPLOAD_BUCKET!;
 
 const bedrockClient = new BedrockRuntimeClient({ region: REGION });
 const s3VectorsClient = new S3VectorsClient({ region: REGION });
+const s3Client = new S3Client({ region: REGION });
 
 // -------------------------------------------------------
 // テキストをチャンクに分割 (スライディングウィンドウ)
@@ -65,8 +68,9 @@ async function embedText(text: string): Promise<number[]> {
 // -------------------------------------------------------
 // SQS トリガー Lambda ハンドラー
 //
-// メッセージ: { content: string; source: string; userId: string }
-// 処理: チャンク分割 → Titan Embeddings → S3 Vectors への書き込み
+// メッセージ: { s3Key: string; source: string; userId: string }
+// 処理: S3 からコンテンツ取得 → チャンク分割 → Titan Embeddings → S3 Vectors への書き込み
+// 処理完了後は一時ファイルを S3 から削除する
 // エラー時は失敗メッセージ ID を返し、SQS がリトライ後 DLQ へ送る
 // -------------------------------------------------------
 export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
@@ -74,22 +78,30 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
 
   for (const record of event.Records) {
     try {
-      const { content, source, userId, tags = [], isPublic = false } = JSON.parse(record.body) as {
-        content: string;
+      const { s3Key, source, userId, tags = [], isPublic = false } = JSON.parse(record.body) as {
+        s3Key: string;
         source: string;
         userId: string;
         tags?: string[];
         isPublic?: boolean;
       };
 
+      // S3 から一時アップロードファイルを読み込む
+      const s3Response = await s3Client.send(
+        new GetObjectCommand({ Bucket: RAW_UPLOAD_BUCKET, Key: s3Key }),
+      );
+      const content = await s3Response.Body!.transformToString('utf-8');
+
       if (!content?.trim()) {
-        console.warn(`[${record.messageId}] content が空のため スキップ`);
-        continue; // 空メッセージは成功扱い (DLQ に送らない)
+        console.warn(`[${record.messageId}] content が空のため スキップ (s3Key: ${s3Key})`);
+        await s3Client.send(new DeleteObjectCommand({ Bucket: RAW_UPLOAD_BUCKET, Key: s3Key }));
+        continue; // 空コンテンツは成功扱い (DLQ に送らない)
       }
 
       const chunks = splitIntoChunks(content);
       if (chunks.length === 0) {
         console.warn(`[${record.messageId}] チャンク分割結果が0件 (source: ${source})`);
+        await s3Client.send(new DeleteObjectCommand({ Bucket: RAW_UPLOAD_BUCKET, Key: s3Key }));
         continue;
       }
 
@@ -131,6 +143,9 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
           }),
         );
       }
+
+      // 処理完了後に一時ファイルを削除
+      await s3Client.send(new DeleteObjectCommand({ Bucket: RAW_UPLOAD_BUCKET, Key: s3Key }));
 
       console.log(`[${record.messageId}] ${vectors.length} チャンクを S3 Vectors に書き込み完了`);
     } catch (err) {

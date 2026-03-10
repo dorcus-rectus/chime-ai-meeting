@@ -15,9 +15,10 @@ const corsHeaders = {
 
 // -------------------------------------------------------
 // Lambda ハンドラー
-// POST /documents { content: string, source: string }
+// POST /documents { s3Key: string, source: string }
 //
-// 入力を検証し SQS キューに送信して即座に 202 を返す。
+// フロントエンドが S3 署名付き URL でアップロードした後に呼び出す。
+// s3Key の所有者検証を行い、SQS キューに送信して 202 を返す。
 // 実際の埋め込み生成・S3 Vectors 書き込みは
 // ingest-document-worker Lambda が非同期で処理する。
 // -------------------------------------------------------
@@ -36,16 +37,27 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 
   try {
-    const body = JSON.parse(event.body ?? '{}') as { content?: string; source?: string; tags?: unknown[]; isPublic?: boolean };
-    const { content, source = '不明なドキュメント', tags: rawTags, isPublic = false } = body;
+    const body = JSON.parse(event.body ?? '{}') as { s3Key?: string; source?: string; tags?: unknown[]; isPublic?: boolean };
+    const { s3Key, source = '不明なドキュメント', tags: rawTags, isPublic = false } = body;
 
-    if (!content?.trim() || content.trim().length < 10) {
+    if (!s3Key?.trim()) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'content フィールドに有効なテキストが必要です (10文字以上)' }),
+        body: JSON.stringify({ error: 's3Key フィールドが必要です' }),
       };
     }
+
+    // セキュリティ: s3Key は get-upload-url が発行した ${userId}/${uuid} 形式のみ許可
+    // 他ユーザーの s3Key を指定してファイルを横取りすることを防ぐ
+    if (!s3Key.startsWith(`${userId}/`)) {
+      return {
+        statusCode: 403,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: '不正な s3Key です' }),
+      };
+    }
+
     if (typeof source === 'string' && source.length > 500) {
       return {
         statusCode: 400,
@@ -62,15 +74,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           .slice(0, 10)
       : [];
 
-    // SQS メッセージサイズ上限は 256KB。大きいドキュメントはエラー
-    const messageBody = JSON.stringify({ content: content.trim(), source, userId, tags, isPublic });
-    if (Buffer.byteLength(messageBody, 'utf8') > 250_000) {
-      return {
-        statusCode: 413,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'ドキュメントが大きすぎます (上限 250KB)。分割して登録してください' }),
-      };
-    }
+    // SQS メッセージには s3Key のみ含める (コンテンツ本体は S3 に格納済み)
+    const messageBody = JSON.stringify({ s3Key, source, userId, tags, isPublic });
 
     await sqsClient.send(
       new SendMessageCommand({
@@ -83,7 +88,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       }),
     );
 
-    console.log(`ドキュメント登録リクエストをキューに送信 (source: "${source}", userId: ${userId})`);
+    console.log(`ドキュメント登録リクエストをキューに送信 (source: "${source}", userId: ${userId}, s3Key: ${s3Key})`);
 
     return {
       statusCode: 202,

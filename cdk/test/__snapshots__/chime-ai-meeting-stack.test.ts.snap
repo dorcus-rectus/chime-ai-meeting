@@ -65,6 +65,11 @@ exports[`スナップショット CloudFormation テンプレートがスナッ�
           "is_reason_encoded": true,
           "reason": "44OG44K544OI55So5oqR5Yi2OiDlsI/opo/mqKHjg5fjg63jgrjjgqfjgq/jg4jjgavjgaTjgY0gV0FGIOmBqeeUqOOBquOBlw==",
         },
+        {
+          "id": "AwsSolutions-S1",
+          "is_reason_encoded": true,
+          "reason": "44OG44K544OI55So5oqR5Yi2OiBSQUcg5LiA5pmC44Ki44OD44OX44Ot44O844OJ44OQ44Kx44OD44OI44Gv44Ki44Kv44K744K544Ot44Kw5LiN6KaB",
+        },
       ],
     },
   },
@@ -203,6 +208,10 @@ exports[`スナップショット CloudFormation テンプレートがスナッ�
         "Ref": "IngestDocumentQueue0DA554E5",
       },
     },
+    "RawUploadBucketName": {
+      "Description": "RAG 一時アップロード S3 バケット名",
+      "Value": "chime-ai-raw-uploads-123456789012",
+    },
     "UsageTableName": {
       "Description": "利用記録 DynamoDB テーブル",
       "Value": {
@@ -282,7 +291,7 @@ exports[`スナップショット CloudFormation テンプレートがスナッ�
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "122ec891bb8a8b0850366fef1563540b3a7588cb04adc28293a8ea9174387c60.zip",
+          "S3Key": "4516d5727a0581bfd349195903ab5c4e6b54c4b783a34d5322e302219bc3be90.zip",
         },
         "Environment": {
           "Variables": {
@@ -305,6 +314,7 @@ exports[`スナップショット CloudFormation テンプレートがスナッ�
             "INGEST_QUEUE_URL": {
               "Ref": "IngestDocumentQueue0DA554E5",
             },
+            "RAW_UPLOAD_BUCKET": "chime-ai-raw-uploads-123456789012",
             "REGION": "ap-northeast-1",
             "USAGE_TABLE": {
               "Ref": "UsageTable28300137",
@@ -601,7 +611,7 @@ frontend:
       "Type": "AWS::IAM::Role",
       "UpdateReplacePolicy": "Retain",
     },
-    "ChimeAiMeetingApiDeployment8DE341B32c8ed9479c8fc344689d3e7184cb3500": {
+    "ChimeAiMeetingApiDeployment8DE341B39dba2835bfb790f6749ddd5096ce5400": {
       "DependsOn": [
         "ChimeAiMeetingApiaichatOPTIONS061FA2D3",
         "ChimeAiMeetingApiaichatPOST60BF233F",
@@ -611,6 +621,9 @@ frontend:
         "ChimeAiMeetingApidocumentsOPTIONS24D698C5",
         "ChimeAiMeetingApidocumentsPOST107EF801",
         "ChimeAiMeetingApidocumentsE2E1DC21",
+        "ChimeAiMeetingApidocumentsuploadurlGET6BCF8BA7",
+        "ChimeAiMeetingApidocumentsuploadurlOPTIONS393F8644",
+        "ChimeAiMeetingApidocumentsuploadurlA0D4077C",
         "ChimeAiMeetingApimeetingsOPTIONSC486EE3C",
         "ChimeAiMeetingApimeetingsPOST4328C84F",
         "ChimeAiMeetingApimeetings3A8D7A43",
@@ -652,7 +665,7 @@ frontend:
           "Format": "{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","user":"$context.identity.user","caller":"$context.identity.caller","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}",
         },
         "DeploymentId": {
-          "Ref": "ChimeAiMeetingApiDeployment8DE341B32c8ed9479c8fc344689d3e7184cb3500",
+          "Ref": "ChimeAiMeetingApiDeployment8DE341B39dba2835bfb790f6749ddd5096ce5400",
         },
         "MethodSettings": [
           {
@@ -1337,6 +1350,161 @@ frontend:
       },
       "Type": "AWS::Lambda::Permission",
     },
+    "ChimeAiMeetingApidocumentsuploadurlA0D4077C": {
+      "Properties": {
+        "ParentId": {
+          "Ref": "ChimeAiMeetingApidocumentsE2E1DC21",
+        },
+        "PathPart": "upload-url",
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Resource",
+    },
+    "ChimeAiMeetingApidocumentsuploadurlGET6BCF8BA7": {
+      "Properties": {
+        "AuthorizationType": "COGNITO_USER_POOLS",
+        "AuthorizerId": {
+          "Ref": "CognitoAuthorizerF3215DBC",
+        },
+        "HttpMethod": "GET",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition",
+                },
+                ":apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "GetUploadUrlFunction24AFC12E",
+                    "Arn",
+                  ],
+                },
+                "/invocations",
+              ],
+            ],
+          },
+        },
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApidocumentsuploadurlA0D4077C",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
+    "ChimeAiMeetingApidocumentsuploadurlGETApiPermissionTestStackChimeAiMeetingApiD34F56B2GETdocumentsuploadurl1DB5A425": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "GetUploadUrlFunction24AFC12E",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/",
+              {
+                "Ref": "ChimeAiMeetingApiDeploymentStageprodC6D6954D",
+              },
+              "/GET/documents/upload-url",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApidocumentsuploadurlGETApiPermissionTestTestStackChimeAiMeetingApiD34F56B2GETdocumentsuploadurl8DEDD798": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "GetUploadUrlFunction24AFC12E",
+            "Arn",
+          ],
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition",
+              },
+              ":execute-api:ap-northeast-1:123456789012:",
+              {
+                "Ref": "ChimeAiMeetingApi9D1E00BD",
+              },
+              "/test-invoke-stage/GET/documents/upload-url",
+            ],
+          ],
+        },
+      },
+      "Type": "AWS::Lambda::Permission",
+    },
+    "ChimeAiMeetingApidocumentsuploadurlOPTIONS393F8644": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+                "method.response.header.Access-Control-Allow-Methods": "'GET,POST,DELETE,OPTIONS'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'",
+                "method.response.header.Access-Control-Max-Age": "'3600'",
+              },
+              "StatusCode": "204",
+            },
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }",
+          },
+          "Type": "MOCK",
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true,
+              "method.response.header.Access-Control-Max-Age": true,
+            },
+            "StatusCode": "204",
+          },
+        ],
+        "ResourceId": {
+          "Ref": "ChimeAiMeetingApidocumentsuploadurlA0D4077C",
+        },
+        "RestApiId": {
+          "Ref": "ChimeAiMeetingApi9D1E00BD",
+        },
+      },
+      "Type": "AWS::ApiGateway::Method",
+    },
     "ChimeAiMeetingApimeetings3A8D7A43": {
       "Properties": {
         "ParentId": {
@@ -1854,7 +2022,7 @@ frontend:
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "78e8669f1e39a5cf407b10713eb53a3f548b9ca7befd546a43d5024298d55fe5.zip",
+          "S3Key": "956ce780c5808c0d088ff8d4ea4ff882716e37f9219eb20cac0e100aeada5c68.zip",
         },
         "Environment": {
           "Variables": {
@@ -1877,6 +2045,7 @@ frontend:
             "INGEST_QUEUE_URL": {
               "Ref": "IngestDocumentQueue0DA554E5",
             },
+            "RAW_UPLOAD_BUCKET": "chime-ai-raw-uploads-123456789012",
             "REGION": "ap-northeast-1",
             "USAGE_TABLE": {
               "Ref": "UsageTable28300137",
@@ -1908,6 +2077,132 @@ frontend:
       "Type": "AWS::Lambda::Function",
     },
     "CreateMeetingLogGroupC546E814": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "RetentionInDays": 7,
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+      "DependsOn": [
+        "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6.zip",
+        },
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Lambda function for auto-deleting objects in ",
+              {
+                "Ref": "RawUploadBucket054730E1",
+              },
+              " S3 bucket.",
+            ],
+          ],
+        },
+        "Handler": "index.handler",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 900,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com",
+              },
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Sub": "arn:\${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+          },
+        ],
+      },
+      "Type": "AWS::IAM::Role",
+    },
+    "GetUploadUrlFunction24AFC12E": {
+      "DependsOn": [
+        "LambdaExecutionRoleDefaultPolicy6D69732F",
+        "LambdaExecutionRoleD5C26073",
+      ],
+      "Properties": {
+        "Code": {
+          "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
+          "S3Key": "e1ea83542f70a710e33a19ce3861a1daaf4388f0632022de74451aac9aed79eb.zip",
+        },
+        "Environment": {
+          "Variables": {
+            "BEDROCK_AGENT_ALIAS_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgentAlias",
+                "AgentAliasId",
+              ],
+            },
+            "BEDROCK_AGENT_ID": {
+              "Fn::GetAtt": [
+                "AiMeetingAgent",
+                "AgentId",
+              ],
+            },
+            "CONVERSATION_TABLE": {
+              "Ref": "ConversationTable75C14D21",
+            },
+            "EMBEDDING_MODEL_ID": "amazon.titan-embed-text-v2:0",
+            "INGEST_QUEUE_URL": {
+              "Ref": "IngestDocumentQueue0DA554E5",
+            },
+            "RAW_UPLOAD_BUCKET": "chime-ai-raw-uploads-123456789012",
+            "REGION": "ap-northeast-1",
+            "USAGE_TABLE": {
+              "Ref": "UsageTable28300137",
+            },
+            "USER_POOL_ID": {
+              "Ref": "UserPool6BA7E5F2",
+            },
+            "VECTOR_BUCKET_NAME": "chime-ai-vectors-123456789012",
+            "VECTOR_INDEX_NAME": "documents",
+          },
+        },
+        "FunctionName": "chime-ai-get-upload-url",
+        "Handler": "index.handler",
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "GetUploadUrlLogGroup59CA5203",
+          },
+        },
+        "MemorySize": 256,
+        "Role": {
+          "Fn::GetAtt": [
+            "LambdaExecutionRoleD5C26073",
+            "Arn",
+          ],
+        },
+        "Runtime": "nodejs24.x",
+        "Timeout": 10,
+      },
+      "Type": "AWS::Lambda::Function",
+    },
+    "GetUploadUrlLogGroup59CA5203": {
       "DeletionPolicy": "Delete",
       "Properties": {
         "RetentionInDays": 7,
@@ -1965,7 +2260,7 @@ frontend:
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "8bdfc3091422c43764776d785be604f1eb6e1dd3a43d78f0c3d6444a40f7f000.zip",
+          "S3Key": "081841a129821c488afa62580dca671c26bb927546e06c8fbb1113db15b0062a.zip",
         },
         "Environment": {
           "Variables": {
@@ -1988,6 +2283,7 @@ frontend:
             "INGEST_QUEUE_URL": {
               "Ref": "IngestDocumentQueue0DA554E5",
             },
+            "RAW_UPLOAD_BUCKET": "chime-ai-raw-uploads-123456789012",
             "REGION": "ap-northeast-1",
             "USAGE_TABLE": {
               "Ref": "UsageTable28300137",
@@ -2085,7 +2381,7 @@ frontend:
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "e77d2153418abfaedabfc80d9d30af5b598ddc14280d39d40ea7276a088187a7.zip",
+          "S3Key": "ecca55790bc5692a51b211420fb84051b5d42dd4a484a9f28d36134da1f39c4f.zip",
         },
         "Environment": {
           "Variables": {
@@ -2108,6 +2404,7 @@ frontend:
             "INGEST_QUEUE_URL": {
               "Ref": "IngestDocumentQueue0DA554E5",
             },
+            "RAW_UPLOAD_BUCKET": "chime-ai-raw-uploads-123456789012",
             "REGION": "ap-northeast-1",
             "USAGE_TABLE": {
               "Ref": "UsageTable28300137",
@@ -2402,6 +2699,36 @@ frontend:
             },
             "PolicyName": "SqsReceivePolicy",
           },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "s3:PutObject",
+                    "s3:GetObject",
+                    "s3:DeleteObject",
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        {
+                          "Fn::GetAtt": [
+                            "RawUploadBucket054730E1",
+                            "Arn",
+                          ],
+                        },
+                        "/*",
+                      ],
+                    ],
+                  },
+                },
+              ],
+              "Version": "2012-10-17",
+            },
+            "PolicyName": "RawUploadS3Policy",
+          },
         ],
       },
       "Type": "AWS::IAM::Role",
@@ -2446,7 +2773,7 @@ frontend:
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "107e24429858f9702c6f8d44fa8c5f83d27c80f4aab59de4491674c175dded2a.zip",
+          "S3Key": "9af44e2464ddd404b603d381ae76139a8c9f0c2f9bf9a384c9fd1160dab0ae5a.zip",
         },
         "Environment": {
           "Variables": {
@@ -2469,6 +2796,7 @@ frontend:
             "INGEST_QUEUE_URL": {
               "Ref": "IngestDocumentQueue0DA554E5",
             },
+            "RAW_UPLOAD_BUCKET": "chime-ai-raw-uploads-123456789012",
             "REGION": "ap-northeast-1",
             "USAGE_TABLE": {
               "Ref": "UsageTable28300137",
@@ -2506,6 +2834,165 @@ frontend:
       },
       "Type": "AWS::Logs::LogGroup",
       "UpdateReplacePolicy": "Delete",
+    },
+    "RawUploadBucket054730E1": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256",
+              },
+            },
+          ],
+        },
+        "BucketName": "chime-ai-raw-uploads-123456789012",
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedHeaders": [
+                "Content-Type",
+              ],
+              "AllowedMethods": [
+                "PUT",
+              ],
+              "AllowedOrigins": [
+                "*",
+              ],
+              "MaxAge": 3000,
+            },
+          ],
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "ExpirationInDays": 1,
+              "Id": "expire-raw-uploads",
+              "Status": "Enabled",
+            },
+          ],
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true,
+        },
+        "Tags": [
+          {
+            "Key": "aws-cdk:auto-delete-objects",
+            "Value": "true",
+          },
+        ],
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "RawUploadBucketAutoDeleteObjectsCustomResource238D440A": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "RawUploadBucketPolicy91446C21",
+      ],
+      "Properties": {
+        "BucketName": {
+          "Ref": "RawUploadBucket054730E1",
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn",
+          ],
+        },
+      },
+      "Type": "Custom::S3AutoDeleteObjects",
+      "UpdateReplacePolicy": "Delete",
+    },
+    "RawUploadBucketPolicy91446C21": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "RawUploadBucket054730E1",
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false",
+                },
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*",
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "RawUploadBucket054730E1",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "RawUploadBucket054730E1",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+            {
+              "Action": [
+                "s3:PutBucketPolicy",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*",
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+                    "Arn",
+                  ],
+                },
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "RawUploadBucket054730E1",
+                    "Arn",
+                  ],
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "RawUploadBucket054730E1",
+                          "Arn",
+                        ],
+                      },
+                      "/*",
+                    ],
+                  ],
+                },
+              ],
+            },
+          ],
+          "Version": "2012-10-17",
+        },
+      },
+      "Type": "AWS::S3::BucketPolicy",
     },
     "S3VectorBucketCustomResourcePolicy173EB451": {
       "Properties": {
@@ -2652,7 +3139,7 @@ frontend:
       "Properties": {
         "Code": {
           "S3Bucket": "cdk-hnb659fds-assets-123456789012-ap-northeast-1",
-          "S3Key": "11f4a7b71c9498bd144aabc090089e37b12358c6ec90854b442992ec0225750f.zip",
+          "S3Key": "db2d143961413de075aa7145cddac6d1be4899a82fb0ad1cf3f93306cdde97ae.zip",
         },
         "Environment": {
           "Variables": {
@@ -2675,6 +3162,7 @@ frontend:
             "INGEST_QUEUE_URL": {
               "Ref": "IngestDocumentQueue0DA554E5",
             },
+            "RAW_UPLOAD_BUCKET": "chime-ai-raw-uploads-123456789012",
             "REGION": "ap-northeast-1",
             "USAGE_TABLE": {
               "Ref": "UsageTable28300137",

@@ -26,6 +26,7 @@ NagSuppressions.addStackSuppressions(stack, [
   { id: 'AwsSolutions-COG2', reason: 'テスト用抑制: MFA は要件外 (COG7 と同様)' },
   { id: 'AwsSolutions-DDB3', reason: 'テスト用抑制: 開発環境では PITR 不要' },
   { id: 'AwsSolutions-APIG3', reason: 'テスト用抑制: 小規模プロジェクトにつき WAF 適用なし' },
+  { id: 'AwsSolutions-S1', reason: 'テスト用抑制: RAG 一時アップロードバケットはアクセスログ不要' },
 ]);
 
 const template = Template.fromStack(stack);
@@ -136,6 +137,59 @@ describe('DynamoDB テーブル', () => {
 });
 
 // ================================================================
+// S3 バケット (RAG 一時アップロード)
+// ================================================================
+describe('S3 RAW アップロードバケット', () => {
+
+  test('RAW アップロードバケットがパブリックアクセスをブロックしている', () => {
+    template.hasResourceProperties('AWS::S3::Bucket', {
+      BucketName: Match.stringLikeRegexp('chime-ai-raw-uploads-'),
+      PublicAccessBlockConfiguration: {
+        BlockPublicAcls: true,
+        BlockPublicPolicy: true,
+        IgnorePublicAcls: true,
+        RestrictPublicBuckets: true,
+      },
+    });
+  });
+
+  test('RAW アップロードバケットに 1 日のライフサイクルルールが設定されている', () => {
+    template.hasResourceProperties('AWS::S3::Bucket', {
+      BucketName: Match.stringLikeRegexp('chime-ai-raw-uploads-'),
+      LifecycleConfiguration: {
+        Rules: Match.arrayWith([
+          Match.objectLike({
+            ExpirationInDays: 1,
+            Status: 'Enabled',
+          }),
+        ]),
+      },
+    });
+  });
+
+  test('Lambda ロールに RAW アップロードバケットへの s3:PutObject / GetObject / DeleteObject 権限が付与されている', () => {
+    template.hasResourceProperties('AWS::IAM::Role', {
+      Policies: Match.arrayWith([
+        Match.objectLike({
+          PolicyName: 'RawUploadS3Policy',
+          PolicyDocument: {
+            Statement: Match.arrayWith([
+              Match.objectLike({
+                Action: Match.arrayWith([
+                  's3:PutObject',
+                  's3:GetObject',
+                  's3:DeleteObject',
+                ]),
+              }),
+            ]),
+          },
+        }),
+      ]),
+    });
+  });
+});
+
+// ================================================================
 // SQS キュー
 // ================================================================
 describe('SQS キュー', () => {
@@ -182,8 +236,8 @@ describe('Lambda 関数', () => {
     return Object.keys(resources).length;
   };
 
-  test('アプリケーション Lambda が 6 つ作成される', () => {
-    expect(countAppLambdas(template)).toBe(6);
+  test('アプリケーション Lambda が 7 つ作成される', () => {
+    expect(countAppLambdas(template)).toBe(7);
   });
 
   test('create-meeting Lambda のタイムアウトが 30 秒', () => {
@@ -230,6 +284,14 @@ describe('Lambda 関数', () => {
   test('manage-documents Lambda が存在する', () => {
     template.hasResourceProperties('AWS::Lambda::Function', {
       FunctionName: 'chime-ai-manage-documents',
+      Runtime: 'nodejs24.x',
+    });
+  });
+
+  test('get-upload-url Lambda のタイムアウトが 10 秒', () => {
+    template.hasResourceProperties('AWS::Lambda::Function', {
+      FunctionName: 'chime-ai-get-upload-url',
+      Timeout: 10,
       Runtime: 'nodejs24.x',
     });
   });
@@ -450,6 +512,7 @@ describe('CloudFormation Outputs', () => {
     'VectorBucketName',
     'IngestQueueUrl',
     'IngestDlqUrl',
+    'RawUploadBucketName',
   ];
 
   test.each(expectedOutputs)('Output "%s" が定義されている', (outputKey) => {
